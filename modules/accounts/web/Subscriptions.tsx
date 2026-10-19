@@ -13,7 +13,7 @@ interface SavedSearchView {
   id: string;
   name: string;
   query: string;
-  filters: { channel: string; category: string | null; kind: string | null; oa: boolean | null; within: number | null };
+  filters: { channel: string; category: string | null; tag: string | null; kind: string | null; oa: boolean | null; within: number | null };
   feedUrl: string;
   createdAt: string;
 }
@@ -31,8 +31,11 @@ export async function loader({ request }: { request: Request }) {
     searches,
     initial: {
       query: url.searchParams.get("q") ?? "",
+      channel: url.searchParams.get("channel") ?? "",
       category: url.searchParams.get("category") ?? "",
+      tag: url.searchParams.get("tag") ?? "",
       kind: url.searchParams.get("kind") ?? "",
+      oa: url.searchParams.get("oa") ?? "",
       within: url.searchParams.get("within") ?? "",
     },
   };
@@ -49,8 +52,11 @@ export default function Subscriptions() {
   const revalidator = useRevalidator();
   const [name, setName] = useState("");
   const [query, setQuery] = useState(initial.query);
+  const [channel, setChannel] = useState(initial.channel);
   const [category, setCategory] = useState(initial.category);
+  const [tag, setTag] = useState(initial.tag);
   const [kind, setKind] = useState(initial.kind);
+  const [oa, setOa] = useState(initial.oa);
   const [within, setWithin] = useState(initial.within);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,7 +75,14 @@ export default function Subscriptions() {
     setNotice(null);
     const res = await post("/api/account/searches", {
       name, query,
-      filters: { category: category || null, kind: kind || null, within: within ? Number(within) : null },
+      filters: {
+        channel: channel || "all",
+        category: category || null,
+        tag: tag.trim() || null,
+        kind: kind || null,
+        oa: oa === "" ? null : oa === "1",
+        within: within ? Number(within) : null,
+      },
     }).catch(() => null);
     setBusy(false);
     if (!res?.ok) {
@@ -78,8 +91,11 @@ export default function Subscriptions() {
     }
     setName("");
     setQuery("");
+    setChannel("");
     setCategory("");
+    setTag("");
     setKind("");
+    setOa("");
     setWithin("");
     setNotice("已保存，下面就是它的 RSS 地址。");
     revalidator.revalidate();
@@ -119,8 +135,12 @@ export default function Subscriptions() {
   const summary = (search: SavedSearchView) => {
     const parts = [search.query || "全部内容"];
     if (search.filters.category) parts.push(CATEGORY_LABELS[search.filters.category as keyof typeof CATEGORY_LABELS] ?? search.filters.category);
+    if (search.filters.channel === "firstParty") parts.push("一手");
+    if (search.filters.tag) parts.push(`#${search.filters.tag}`);
     if (search.filters.kind === "paper") parts.push("期刊论文");
     if (search.filters.kind === "preprint") parts.push("预印本");
+    if (search.filters.oa === true) parts.push("开放获取");
+    if (search.filters.oa === false) parts.push("非开放获取");
     if (search.filters.within) parts.push(`最近 ${search.filters.within} 天`);
     return parts.join(" · ");
   };
@@ -154,11 +174,30 @@ export default function Subscriptions() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
+            <span className={labelClass}>来源</span>
+            <select value={channel} onChange={(e) => setChannel(e.target.value)} className={inputClass}>
+              <option value="">全部来源</option>
+              <option value="firstParty">一手</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className={labelClass}>标签</span>
+            <input value={tag} onChange={(e) => setTag(e.target.value)} maxLength={60} placeholder="例如：高光谱" className={inputClass} />
+          </label>
+          <label className="flex flex-col gap-1">
             <span className={labelClass}>来源类型</span>
             <select value={kind} onChange={(e) => setKind(e.target.value)} className={inputClass}>
               <option value="">期刊与预印本</option>
               <option value="paper">期刊论文</option>
               <option value="preprint">预印本</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className={labelClass}>获取方式</span>
+            <select value={oa} onChange={(e) => setOa(e.target.value)} className={inputClass}>
+              <option value="">不限</option>
+              <option value="1">开放获取</option>
+              <option value="0">非开放获取</option>
             </select>
           </label>
           <label className="flex flex-col gap-1">

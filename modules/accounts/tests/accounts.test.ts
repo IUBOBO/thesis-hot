@@ -133,11 +133,14 @@ test("订阅：保存搜索、RSS 可读、删除后地址失效", async () => {
   assert.equal(reg.statusCode, 201, reg.body);
   const session = sessionOf(reg);
 
-  const created = await post("/api/account/searches", { name: "遥感论文", query: "遥感", filters: { category: "rs", kind: "paper" } }, session);
+  const created = await post("/api/account/searches", { name: "遥感论文", query: "遥感", filters: { category: "rs", tag: "高光谱", kind: "paper", oa: true, channel: "firstParty" } }, session);
   assert.equal(created.statusCode, 201, created.body);
   const search = JSON.parse(created.body).search;
   assert.equal(search.name, "遥感论文");
   assert.equal(search.filters.category, "rs");
+  assert.equal(search.filters.tag, "高光谱");
+  assert.equal(search.filters.oa, true);
+  assert.equal(search.filters.channel, "firstParty");
   assert.match(search.feedUrl, /\/feed\/search\/[\w-]+\.xml$/);
 
   const path = new URL(search.feedUrl).pathname;
