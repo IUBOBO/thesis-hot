@@ -20,6 +20,7 @@ export const IconFlame = (p: P) => (<Svg {...p}><path d="M12 22c4 0 7-2.7 7-7 0-
 export const IconGrid = (p: P) => (<Svg {...p}><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></Svg>);
 export const IconBookmark = (p: P & { filled?: boolean }) => { const { filled, ...rest } = p; return (<Svg {...rest}><path d="M6 3.5h12v17l-6-4-6 4z" fill={filled ? "currentColor" : "none"} /></Svg>); };
 export const IconChart = (p: P) => (<Svg {...p}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></Svg>);
+export const IconCalendar = (p: P) => (<Svg {...p}><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16" /></Svg>);
 export const IconClock = (p: P) => (<Svg {...p}><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></Svg>);
 export const IconPlug = (p: P) => (<Svg {...p}><path d="M9 3v5M15 3v5M7 8h10v3a5 5 0 01-10 0zM12 16v5" /></Svg>);
 export const IconSparkles = (p: P) => (<Svg {...p}><path d="M11 3.5l1.7 4.8 4.8 1.7-4.8 1.7L11 16.5l-1.7-4.8L4.5 10l4.8-1.7z" /><path d="M18 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" /></Svg>);

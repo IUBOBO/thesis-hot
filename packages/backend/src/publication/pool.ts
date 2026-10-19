@@ -4,8 +4,8 @@ import { beijingDate, beijingMidnight } from "@aihot/contracts/time";
 import { one, sql, withCustomPlans, type Db } from "../db.ts";
 import { cachedByKey, sharedSearch } from "../lib/cache.ts";
 import {
-  categoryCondition, channelCondition, ITEM_COLUMNS, ITEM_FROM, seatHolders, tagCondition, toFeedItemSummary,
-  type ItemRow,
+  categoryCondition, channelCondition, ITEM_COLUMNS, ITEM_FROM, openAccessCondition, seatHolders, sinceCondition,
+  sourceCondition, sourceKindCondition, tagCondition, toFeedItemSummary, withinDaysCondition, type ItemRow,
 } from "./items.ts";
 import { listedCondition } from "./scope.ts";
 import { TOPICS } from "./topics.ts";
@@ -74,6 +74,64 @@ export function directMatchCondition(terms: string[]) {
   return terms.reduce((acc, t) => sql`${acc} AND p.search_text LIKE ${"%" + t + "%"}`, sql``);
 }
 
+/** A boolean query: OR groups of AND terms, plus terms that must not match. */
+export interface BooleanQuery {
+  groups: string[][];
+  not: string[];
+  /** Every positive term once, for ranking and highlighting. */
+  positive: string[];
+  /** Whether the query actually used AND, OR or NOT. */
+  boolean: boolean;
+}
+
+/**
+ * A search with optional boolean operators: uppercase AND, OR and NOT between words.
+ * "A B" (or "A AND B") needs both, "A OR B" either, "NOT C" excludes. Parentheses are ignored.
+ */
+export function parseBooleanQuery(q: string): BooleanQuery {
+  const tokens = q.replace(/[()]/g, " ").split(/\s+/).filter(Boolean);
+  const groups: string[][] = [[]];
+  const not: string[] = [];
+  let boolean = false;
+  let negate = false;
+  for (const token of tokens) {
+    const operator = token;
+    if (operator === "OR") {
+      boolean = true;
+      if (groups[groups.length - 1]!.length) groups.push([]);
+      negate = false;
+      continue;
+    }
+    if (operator === "AND") {
+      boolean = true;
+      continue;
+    }
+    if (operator === "NOT") {
+      boolean = true;
+      negate = true;
+      continue;
+    }
+    if (negate) {
+      not.push(...searchTerms(token));
+      negate = false;
+      continue;
+    }
+    groups[groups.length - 1]!.push(...searchTerms(token));
+  }
+  const kept = groups.filter((group) => group.length);
+  return { groups: kept.length ? kept : [[]], not, positive: [...new Set(kept.flat())], boolean };
+}
+
+/** The boolean query as SQL over `match`, which renders one term; with its AND when `leading`. */
+export function booleanCondition(parsed: BooleanQuery, match: (term: string) => ReturnType<typeof sql>, leading = true): ReturnType<typeof directMatchCondition> {
+  const groups = parsed.groups.filter((group) => group.length)
+    .map((group) => group.map((term) => match(term)).reduce((acc, one) => sql`${acc} AND ${one}`, sql`TRUE`));
+  const positive = groups.length ? groups.reduce((acc, one) => sql`${acc} OR ${one}`) : sql`TRUE`;
+  const negative = parsed.not.map((term) => sql`NOT (${match(term)})`).reduce((acc, one) => sql`${acc} AND ${one}`, sql`TRUE`);
+  const core = sql`(${positive}) AND (${negative})`;
+  return leading ? sql`AND ${core}` : core;
+}
+
 const normalizeAlias = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
 
 /**
@@ -111,17 +169,49 @@ export function publicMatchCondition(terms: string[]) {
   );
 }
 
-/** The listed items under the filters, up to the pages the pool offers. */
-async function listedCount(f: TimelineFilters, now: Date): Promise<number> {
-  return Number(one(await sql<{ n: number }[]>`
-    SELECT count(*) AS n FROM (SELECT 1 FROM publications p WHERE ${listedCondition(now)}
-      ${channelCondition(f.channel)} ${categoryCondition(f.category)} ${tagCondition(f.tag)} LIMIT ${POOL_MAX_PAGES * POOL_PAGE_SIZE}) t`).n);
+/** What narrows the pool beside its topics: a site module's own page (a journal) and a day's new reports. */
+export interface PoolScope extends TimelineFilters {
+  /** Only this source's reports. */
+  source?: string | null;
+  /** Only reports at or after this instant (today's papers). */
+  since?: Date | null;
 }
 
-/** Without a search the total only sets the page count: it is reused for 30 seconds per filter. */
-const poolTotal = cachedByKey((f: TimelineFilters) => JSON.stringify([f.channel, f.category, f.tag]), (f) => listedCount(f, new Date()), { freshMs: 30_000, maxStaleMs: 30_000, maxKeys: 200 });
+/** The listed items under the scope, up to the pages the pool offers. */
+async function listedCount(f: PoolScope, now: Date): Promise<number> {
+  return Number(one(await sql<{ n: number }[]>`
+    SELECT count(*) AS n FROM (SELECT 1 FROM publications p WHERE ${listedCondition(now)}
+      ${channelCondition(f.channel)} ${categoryCondition(f.category)} ${tagCondition(f.tag)}
+      ${sourceCondition(f.source)} ${sinceCondition(f.since)} ${sourceKindCondition(f.kind)}
+      ${openAccessCondition(f.oa)} ${withinDaysCondition(f.within, now)} LIMIT ${POOL_MAX_PAGES * POOL_PAGE_SIZE}) t`).n);
+}
 
-export interface PoolQuery extends TimelineFilters {
+/** Without a search the total only sets the page count: it is reused for 30 seconds per scope. */
+const poolTotal = cachedByKey((f: PoolScope) => JSON.stringify([f.channel, f.category, f.tag, f.kind ?? null, f.oa ?? null, f.within ?? null, f.source ?? null, f.since?.toISOString() ?? null]), (f) => listedCount(f, new Date()), { freshMs: 30_000, maxStaleMs: 30_000, maxKeys: 200 });
+
+/** A source's listed reports under the scope, and the newest of them (its last update). */
+export interface SourceTotal {
+  total: number;
+  latestAt: Date | null;
+}
+
+/**
+ * Listed reports per source in one grouped read, with each source's newest one: a module's index over
+ * many sources at once (the journals module shows fifty), where a pool page per source would be a query
+ * each. Sources with nothing listed are missing.
+ */
+export async function loadSourceTotals(scope: { sourceIds: readonly string[]; since?: Date | null }, now: Date = new Date()): Promise<Map<string, SourceTotal>> {
+  const ids = [...new Set(scope.sourceIds)];
+  if (ids.length === 0) return new Map();
+  const rows = await sql<{ id: string; n: number; latest: Date | null }[]>`
+    SELECT p.source_id AS id, count(*) AS n, max(p.timeline_at) AS latest
+    FROM publications p
+    WHERE p.source_id = ANY(${ids}::text[]) AND ${listedCondition(now)} ${sinceCondition(scope.since)}
+    GROUP BY p.source_id`;
+  return new Map(rows.map((row) => [row.id, { total: Number(row.n), latestAt: row.latest }]));
+}
+
+export interface PoolQuery extends PoolScope {
   q?: string | null;
   tab?: "time" | "relevance";
   page?: number;
@@ -130,7 +220,7 @@ export interface PoolQuery extends TimelineFilters {
 
 // Identical searches share their read before taking search capacity.
 const searchPool = sharedSearch(
-  (q: PoolQuery) => JSON.stringify([q.channel, q.category, q.tag, q.q, q.tab, q.page]),
+  (q: PoolQuery) => JSON.stringify([q.channel, q.category, q.tag, q.kind ?? null, q.oa ?? null, q.within ?? null, q.source ?? null, q.since?.toISOString() ?? null, q.q, q.tab, q.page]),
   queryPool, (q) => !!q.q?.trim(),
 );
 
@@ -142,16 +232,19 @@ async function queryPool(query: PoolQuery, now: Date): Promise<PoolResponse> {
   const page = Math.min(Math.max(query.page ?? 1, 1), POOL_MAX_PAGES);
   const q = query.q?.trim() || null;
   const tab = q && query.tab === "relevance" ? "relevance" : "time";
-  const terms = q ? searchTerms(q) : [];
+  const parsed = q ? parseBooleanQuery(q) : null;
+  const terms = parsed?.positive ?? [];
   const entityTag = q ? queryEntityTag(q) : null;
-  const filters = sql`${channelCondition(query.channel)} ${categoryCondition(query.category)} ${tagCondition(query.tag)}`;
+  const filters = sql`${channelCondition(query.channel)} ${categoryCondition(query.category)} ${tagCondition(query.tag)}
+    ${sourceCondition(query.source)} ${sinceCondition(query.since)} ${sourceKindCondition(query.kind)}
+    ${openAccessCondition(query.oa)} ${withinDaysCondition(query.within, now)}`;
   const offset = (page - 1) * POOL_PAGE_SIZE;
   const cap = POOL_MAX_PAGES * POOL_PAGE_SIZE;
 
   // Searches go through pool_search (eligible items only): trigram indexes for longer terms, a small
   // table to scan for one- and two-character ones.
   const matchOrSubject = (text: ReturnType<typeof directMatchCondition>) => (entityTag ? sql`AND (p.tags @> ${[entityTag]}::text[] OR (TRUE ${text}))` : text);
-  const like = (col: ReturnType<typeof sql>, t: string) => sql`${col} LIKE ${"%" + t + "%"}`;
+  const like = (col: unknown, t: string): ReturnType<typeof sql> => sql`${col as ReturnType<typeof sql>} LIKE ${"%" + t + "%"}` as ReturnType<typeof sql>;
   const run = async (db: Db) => {
     if (!q) {
       // Page ids from the timeline index first, then the joins for those rows only.
@@ -177,8 +270,12 @@ async function queryPool(query: PoolQuery, now: Date): Promise<PoolResponse> {
         sql`0`,
       );
       const titleScore = terms.reduce((acc, t) => sql`${acc} + (CASE WHEN ${like(sql`lower(p.title)`, t)} THEN 6 ELSE 0 END)`, sql`0`);
-      const anyMatch = terms.reduce((acc, t) => sql`${acc} AND (${like(sql`ps.direct`, t)} OR ${like(sql`ps.body`, t)})`, sql`TRUE`);
-      const matches = splitFields ? sql`
+      const anyMatch = parsed?.boolean
+        ? booleanCondition(parsed, (t) => sql`(${like(sql`ps.direct`, t)} OR ${like(sql`ps.body`, t)})`, false)
+        : terms.reduce((acc, t) => sql`${acc} AND (${like(sql`ps.direct`, t)} OR ${like(sql`ps.body`, t)})`, sql`TRUE`);
+      const matches = parsed?.boolean
+        ? sql`SELECT p.article_id, 0 AS part FROM publications p WHERE ${booleanCondition(parsed, (t) => sql`p.search_text LIKE ${"%" + t + "%"}`, false)}`
+        : splitFields ? sql`
         SELECT coalesce(d.article_id, b.article_id) AS article_id,
           (CASE WHEN d.article_id IS NOT NULL THEN 3 ELSE 0 END) + (CASE WHEN b.article_id IS NOT NULL THEN 1 ELSE 0 END) AS part
         FROM (SELECT article_id FROM pool_search WHERE direct LIKE ${"%" + terms[0]! + "%"}) d
@@ -213,11 +310,15 @@ async function queryPool(query: PoolQuery, now: Date): Promise<PoolResponse> {
     // search rows, where one- and two-character terms scan a small table instead of every item.
     const rows = await db<ItemRow[]>`
       WITH page AS (
-        SELECT p.article_id FROM publications p WHERE ${listedCondition(now)} ${filters} ${matchOrSubject(directMatchCondition(terms))}
+        SELECT p.article_id FROM publications p WHERE ${listedCondition(now)} ${filters} ${matchOrSubject((parsed?.boolean
+          ? booleanCondition(parsed, (t) => sql`p.search_text LIKE ${"%" + t + "%"}`)
+          : directMatchCondition(terms)) as ReturnType<typeof directMatchCondition>)}
         ORDER BY p.timeline_at DESC, p.article_id DESC LIMIT ${POOL_PAGE_SIZE} OFFSET ${offset})
       SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
       ORDER BY p.timeline_at DESC, p.article_id DESC`;
-    const direct = terms.reduce((acc, t) => sql`${acc} AND ${like(sql`ps.direct`, t)}`, sql``);
+    const direct = (parsed?.boolean
+      ? booleanCondition(parsed, (t) => like(sql`ps.direct`, t))
+      : terms.reduce((acc, t) => sql`${acc} AND ${like(sql`ps.direct`, t)}`, sql``)) as unknown as ReturnType<typeof directMatchCondition>;
     const { n } = one(await db<{ n: number }[]>`
       SELECT count(*) AS n FROM (SELECT 1 FROM pool_search ps JOIN publications p ON p.article_id = ps.article_id
         WHERE ${listedCondition(now)} ${filters} ${matchOrSubject(direct)} LIMIT ${cap}) t`);
@@ -233,7 +334,7 @@ async function queryPool(query: PoolQuery, now: Date): Promise<PoolResponse> {
 
   const holders = await seatHolders(rows, now);
   return {
-    filters: { channel: query.channel, category: query.category, tag: query.tag, q, tab },
+    filters: { channel: query.channel, category: query.category, tag: query.tag, kind: query.kind ?? null, oa: query.oa ?? null, within: query.within ?? null, q, tab },
     items: rows.map((r) => (holders.has(r.id) ? { ...toFeedItemSummary(r), reason: null, sameEvent: holders.get(r.id)! } : toFeedItemSummary(r))),
     page,
     pageCount: Math.min(POOL_MAX_PAGES, Math.max(1, Math.ceil(total / POOL_PAGE_SIZE))),

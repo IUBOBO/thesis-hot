@@ -5,9 +5,10 @@ import { SITE } from "@aihot/site";
 import { Presence } from "../components/ui/Presence";
 import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
-import { exportBundle, importBundle, removeStar, useStarred, type ImportReport } from "../lib/local-state";
+import { exportBundle, importBundle, removeStar, setStarMeta, useStarred, type ImportReport, type LocalStarredItem, type StarStatus } from "../lib/local-state";
 import { fullDateTime } from "../lib/format";
 import { IconBookmark, IconDownload, IconClose } from "../components/icons";
+import { SourceTag } from "../components/ui/SourceTag";
 import { readSnapshot, restoreAnchor, useSaveOnLeave } from "../lib/restore";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
@@ -20,7 +21,7 @@ export function headers() {
 }
 
 export function meta() {
-  return pageMeta({ title: "我的收藏", description: `保存在这台设备上的 ${SITE.name} 收藏。`, path: "/starred", noindex: true });
+  return pageMeta({ title: "我的收藏", description: `未登录时保存在这台设备、登录后同步到账号的 ${SITE.name} 收藏。`, path: "/starred", noindex: true });
 }
 
 function reportText(r: ImportReport): string {
@@ -32,14 +33,44 @@ function reportText(r: ImportReport): string {
   return parts.join("，");
 }
 
+const STATUS_LABELS: Record<StarStatus, string> = { saved: "待读", reading: "在读", done: "已读" };
+
+function StarMeta({ item }: { item: LocalStarredItem }) {
+  const [folder, setFolder] = useState(item.folder ?? "");
+  const [tags, setTags] = useState((item.tags ?? []).join(", "));
+  const [status, setStatus] = useState<StarStatus>(item.status ?? "saved");
+  const save = (next = status) => setStarMeta(item.id, folder.trim() || null, tags.split(/[,，]/), next);
+  return (
+    <div className="relative z-10 mt-2 flex flex-wrap items-center gap-2 text-[12px]">
+      <input value={folder} onChange={(event) => setFolder(event.target.value)} onBlur={() => save()} aria-label="分组"
+        placeholder="分组" maxLength={40}
+        className="h-7 w-24 rounded-full bg-bg-sunk px-2.5 text-ink-2 outline-none ring-1 ring-inset ring-line-soft placeholder:text-ink-4 focus:ring-accent" />
+      <input value={tags} onChange={(event) => setTags(event.target.value)} onBlur={() => save()} aria-label="标签"
+        placeholder="标签，逗号分隔" maxLength={120}
+        className="h-7 min-w-[140px] flex-1 rounded-full bg-bg-sunk px-2.5 text-ink-2 outline-none ring-1 ring-inset ring-line-soft placeholder:text-ink-4 focus:ring-accent" />
+      <select value={status} aria-label="阅读状态"
+        onChange={(event) => { const next = event.target.value as StarStatus; setStatus(next); save(next); }}
+        className="h-7 rounded-full border-0 bg-bg-sunk pl-2.5 pr-7 text-ink-2 outline-none ring-1 ring-inset ring-line-soft focus:ring-accent">
+        {(Object.keys(STATUS_LABELS) as StarStatus[]).map((key) => <option key={key} value={key}>{STATUS_LABELS[key]}</option>)}
+      </select>
+    </div>
+  );
+}
+
 export default function StarredPage() {
   const starred = useStarred();
+  const [folderFilter, setFolderFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StarStatus | null>(null);
   const [mounted, setMounted] = useState(false);
   const [availability, setAvailability] = useState<Record<string, ItemAvailability>>({});
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => setMounted(true), []);
 
+  const folders = [...new Set(starred.map((s) => s.folder).filter((f): f is string => !!f))];
+  const tags = [...new Set(starred.flatMap((s) => s.tags ?? []))];
+  const shown = starred.filter((s) => (!folderFilter || s.folder === folderFilter) && (!tagFilter || (s.tags ?? []).includes(tagFilter)) && (!statusFilter || (s.status ?? "saved") === statusFilter));
   const starredIds = starred.map((s) => s.id).join(",");
   useEffect(() => {
     if (!mounted || !starredIds) return;
@@ -122,7 +153,7 @@ export default function StarredPage() {
           <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" onChange={(e) => doImport(e.target.files?.[0])} />
         </div>
       </header>
-      <p className="rounded-tile border border-line bg-surface px-4 py-2.5 text-[12.5px] text-ink-3">收藏只保存在当前浏览器；清除浏览器数据或换设备后不会同步。</p>
+      <p className="rounded-tile border border-line bg-surface px-4 py-2.5 text-[12.5px] text-ink-3">收藏先保存在这台设备；登录后自动同步到账号，换设备也能看到。没登录时清除浏览器数据会丢失，记得用下面的“导出”。</p>
       <Presence show={!!notice} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
         <div
           role="status"
@@ -143,15 +174,51 @@ export default function StarredPage() {
           </Link>
         </div>
       ) : (
+        <>
+          <div className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-3">
+            阅读状态
+            <select value={statusFilter ?? ""} onChange={(event) => setStatusFilter((event.target.value || null) as StarStatus | null)}
+              className="h-8 rounded-full border-0 bg-bg-sunk pl-3 pr-8 text-[12.5px] text-ink-2 outline-none ring-1 ring-inset ring-line-soft focus:ring-accent">
+              <option value="">全部</option>
+              <option value="saved">待读</option>
+              <option value="reading">在读</option>
+              <option value="done">已读</option>
+            </select>
+          </div>
+          {(folders.length > 0 || tags.length > 0) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[12.5px]">
+              <button type="button" onClick={() => { setFolderFilter(null); setTagFilter(null); }}
+                className={`rounded-full px-3 py-1 ${folderFilter === null && tagFilter === null ? "bg-ink text-bg" : "bg-bg-sunk text-ink-3 hover:text-ink"}`}>
+                全部
+              </button>
+              {folders.map((folder) => (
+                <button key={folder} type="button" onClick={() => { setFolderFilter(folder); setTagFilter(null); }}
+                  className={`rounded-full px-3 py-1 ${folderFilter === folder ? "bg-accent text-accent-contrast" : "bg-bg-sunk text-ink-3 hover:text-ink"}`}>
+                  {folder}
+                </button>
+              ))}
+              {tags.map((tag) => (
+                <button key={tag} type="button" onClick={() => { setTagFilter(tag); setFolderFilter(null); }}
+                  className={`rounded-full px-3 py-1 ${tagFilter === tag ? "bg-accent text-accent-contrast" : "bg-bg-sunk text-ink-3 hover:text-ink"}`}>
+                  #{tag}
+                </button>
+              ))}
+            </div>
+          )}
+          {shown.length === 0 ? (
+            <p className="mt-4 rounded-tile border border-dashed border-line-strong px-4 py-8 text-center text-[13px] text-ink-3">
+              这个分组或标签下还没有收藏。
+            </p>
+          ) : (
         <ul className="mt-3 lg:space-y-3">
-          {starred.map((s) => {
+          {shown.map((s) => {
             const current = availability[s.id];
             const status = current?.status;
             const unavailable = status === "unavailable";
             return (
               <li key={s.id} data-card-key={s.id} className={`relative border-b border-line-soft py-4 lg:card lg:px-[18px] lg:py-[15px] ${unavailable ? "opacity-70" : "lg:card-hover"}`}>
                 <div className="flex items-center gap-2 text-[12.5px] text-ink-4">
-                  <span className="min-w-0 truncate text-ink-3">{current?.sourceName ?? s.sourceName}</span>
+                  <SourceTag name={current?.sourceName ?? s.sourceName} size="sm" />
                   {s.publishedAt && <span className="num shrink-0">· {fullDateTime(s.publishedAt)}</span>}
                   <span className="ml-auto hidden shrink-0 sm:inline">
                     收藏于 <span className="num">{fullDateTime(s.savedAt)}</span>
@@ -170,12 +237,15 @@ export default function StarredPage() {
                   )}
                 </h2>
                 {s.summary && <p className="mt-1.5 line-clamp-2 text-[14px] leading-[1.75] text-ink-3">{s.summary}</p>}
+                <StarMeta item={s} />
                 {unavailable && <p className="mt-2 text-[12.5px] text-hot">这条内容已不再公开，收藏会保留直到你手动移除。</p>}
                 {status === "summary-only" && <p className="mt-2 text-[12.5px] text-amber-ink">应来源方要求，这条内容现在只提供摘要。</p>}
               </li>
             );
           })}
         </ul>
+          )}
+        </>
       )}
     </div>
   );

@@ -1,8 +1,9 @@
 // Feed filters: the channel and category choice (a row of tabs on desktop, a sheet behind the bar's filter
 // button on phones), the phone bar of 精选 and 全部, and search.
 import { useEffect, useRef, useState } from "react";
-import { Form, Link, useNavigation, useSearchParams } from "react-router";
+import { Form, Link, useNavigate, useNavigation, useSearchParams } from "react-router";
 import { CATEGORY_KEYS, CATEGORY_LABELS, CHANNEL_LABELS, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
+import type { TimelineFilters } from "@aihot/contracts/site";
 import { SITE } from "@aihot/site";
 import { IconCheck, IconClose, IconFilter, IconSearch } from "../../components/icons";
 import { PillTabs } from "../../components/ui/Tabs";
@@ -88,6 +89,58 @@ export function FeedBar({ base, category, channel }: { base: "/" | "/all"; categ
       />
       <FilterSheet open={sheet} onClose={() => setSheet(false)} base={base} active={filterKey(category, channel)} />
     </>
+  );
+}
+
+/** What a filter chip in the 全部 list narrows beyond the category tabs: source kind, recency, open access. */
+const KIND_OPTIONS = [
+  { value: "", label: "来源不限" },
+  { value: "paper", label: "期刊论文" },
+  { value: "preprint", label: "预印本" },
+] as const;
+const WITHIN_OPTIONS = [
+  { value: "", label: "时间不限" },
+  { value: "7", label: "近 7 天" },
+  { value: "30", label: "近 30 天" },
+  { value: "365", label: "近一年" },
+] as const;
+const OA_OPTIONS = [
+  { value: "", label: "获取方式不限" },
+  { value: "1", label: "开放获取" },
+  { value: "0", label: "非开放获取" },
+] as const;
+
+/**
+ * The 全部 list's narrower filters (source kind, recency, open access), one row of selects under the
+ * category tabs. Each choice goes into the address, so the list, paging and the back button keep it.
+ */
+export function FeedFilters({ base, filters }: { base: string; filters: TimelineFilters }) {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const set = (name: string, value: string) => {
+    const sp = new URLSearchParams(params);
+    if (value) sp.set(name, value);
+    else sp.delete(name);
+    sp.delete("page");
+    const s = sp.toString();
+    navigate(s ? `${base}?${s}` : base);
+  };
+  const select = "h-9 max-w-full rounded-full border-0 bg-bg-sunk pl-3 pr-8 text-[13px] text-ink-2 ring-1 ring-inset ring-line-soft transition-colors hover:ring-line-strong focus:outline-none focus:ring-2 focus:ring-accent dark:bg-bg-muted/60";
+  return (
+    <div className="mb-3 mt-1 flex flex-wrap items-center gap-2 lg:mb-4">
+      <label className="sr-only" htmlFor="filter-kind">来源类型</label>
+      <select id="filter-kind" value={filters.kind ?? ""} onChange={(e) => set("kind", e.target.value)} className={select}>
+        {KIND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <label className="sr-only" htmlFor="filter-within">发表时间</label>
+      <select id="filter-within" value={filters.within ? String(filters.within) : ""} onChange={(e) => set("within", e.target.value)} className={select}>
+        {WITHIN_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <label className="sr-only" htmlFor="filter-oa">开放获取</label>
+      <select id="filter-oa" value={filters.oa === null || filters.oa === undefined ? "" : filters.oa ? "1" : "0"} onChange={(e) => set("oa", e.target.value)} className={select}>
+        {OA_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
   );
 }
 
@@ -187,7 +240,7 @@ export function SearchField({ defaultValue = "", keep = {} }: { defaultValue?: s
         name="q"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="搜索标题、摘要…"
+        placeholder="搜索标题、摘要（支持 AND / OR / NOT）"
         maxLength={200}
         autoComplete="off"
         className="h-[42px] w-full rounded-full bg-bg-sunk pl-10 pr-10 text-[14px] text-ink outline-none ring-1 ring-inset ring-line-soft transition-[background-color,box-shadow] placeholder:text-ink-4 hover:ring-line-strong focus:bg-surface focus:shadow-[0_0_0_3px_var(--accent-soft)] focus:ring-accent dark:bg-bg-muted/60 dark:focus:bg-surface"

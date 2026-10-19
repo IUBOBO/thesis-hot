@@ -113,6 +113,22 @@ export interface TopicPagePart {
   news: (data: unknown) => string[];
 }
 
+/** A module's part of the home page (routes/home.tsx), above the timeline. */
+export interface HomePart {
+  /** The address of its data on the api (module.ts apiPaths); the page's loader reads it, a failed read draws nothing. */
+  load: string;
+  /** Drawn from what `load` returned; `data` is that answer, or null. */
+  Block: ComponentType<{ data: unknown }>;
+}
+
+/** A module's part of an article page (routes/item.tsx), below the article's text. */
+export interface ItemPart {
+  /** The address of this item's data on the api (module.ts apiPaths); the part reads it after the text is up. */
+  load: (itemId: string) => string;
+  /** Drawn with the item; it shows nothing when the api has no answer for it. */
+  Block: ComponentType<{ itemId: string; load: string }>;
+}
+
 export interface WebModule {
   /** Its folder under modules/. */
   name: string;
@@ -147,6 +163,10 @@ export interface WebModule {
   };
   agent?: Part<AgentPart>;
   topicPage?: Part<TopicPagePart>;
+  /** The home page's block above the timeline (routes/home.tsx), in the site's order. */
+  home?: Part<HomePart>;
+  /** A block below an article's text (routes/item.tsx): citations, a note editor, and the like. */
+  item?: Part<ItemPart>;
   /** Paths of the marks it serves that are drawn in white, for a dark tile (components/BrandMark.tsx). */
   darkMarks?: string[];
   /** The starred page (routes/starred.tsx): buttons ahead of 导入文件 that bring stars in from elsewhere, each resolving to the line it reports. */

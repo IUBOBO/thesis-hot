@@ -24,6 +24,9 @@ export const sectionOf = (category: string | null) => SECTION_OF[category ?? ""]
 /** A daily's size: the entries readers get in full, and the one-line flashes after them. */
 export const MAIN_ENTRIES = 12;
 export const FLASH_ENTRIES = 10;
+
+/** One journal may fill at most this many of the one-line flashes; later sources take the remaining slots. */
+export const FLASH_PER_SOURCE = 5;
 /** No source fills a daily: at most this many main entries lead with the same source. */
 const PER_SOURCE = 2;
 /** A follow-up of a covered event takes a full entry when this many sources carry its new facts. */
@@ -406,6 +409,14 @@ export function arrangeDaily(entries: EditionEntry[]): { main: EditionEntry[]; f
       perSource.set(e.entry.sourceId, n + 1);
     } else rest.push(e);
   }
-  const flashes = rest.slice(0, FLASH_ENTRIES);
+  const flashes: EditionEntry[] = [];
+  const flashPerSource = new Map<string, number>();
+  for (const e of rest) {
+    const n = flashPerSource.get(e.entry.sourceId) ?? 0;
+    if (n >= FLASH_PER_SOURCE) continue;
+    flashes.push(e);
+    flashPerSource.set(e.entry.sourceId, n + 1);
+    if (flashes.length >= FLASH_ENTRIES) break;
+  }
   return { main, flashes, stats: { roundupsFolded: folded.size, followUpsAsFlashes: live.filter((e) => !full(e)).length, left: rest.length - flashes.length } };
 }

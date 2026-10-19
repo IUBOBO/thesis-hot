@@ -1,6 +1,6 @@
 # 把它改成你的行业
 
-这份仓库默认是一个“AI 行业”的示例站：示范信源是一批公开的 AI 资讯源，精选口味是 AIHOT 在 AI 领域调了很久的那一套。要把它变成“法律热点”“HR 热点”“黄金热点”，要改的东西几乎都在 [`site/`](../site/)（这个站自己的名字、文案、品牌和页面）和 [`industry/`](../industry/)（行业的分类、信源、提示词和门槛）这两个文件夹里，代码基本不用动。
+这份仓库已经配置成 Thesis NH（论文站）：学科、期刊清单、提示词和门槛都在 [`industry/`](../industry/)，站名文案在 [`site/`](../site/)。下面是从框架自带的示例站换成另一个行业的完整步骤，再次换行业、换学科时按它做；只加一本期刊，改 `industry/journals.json` 一行就够。要改的东西几乎都在 `site/`（这个站自己的名字、文案、品牌和页面）和 `industry/`（行业的分类、信源、提示词和门槛）这两个文件夹里，代码基本不用动。
 
 如果你用 Claude Code、Codex 这类 Agent，可以把下面这段直接发给它，然后回答它的问题：
 
@@ -50,9 +50,9 @@
 ## 2. 分类、标签和主题：`industry/taxonomy.ts`、`industry/topics.json`
 
 - `CATEGORIES`：首页和“全部动态”的筛选类别。`key` 会出现在网址和接口里（`/all?category=`、`/feed/category/<key>.xml`），上线后不要改；`label` 是显示名；`section` 是日报、周报、月报里的分节（几个类别可以共用一节）；`guide` 写这一类收什么、和相邻类别的边界在哪，结构化时给模型看（总的归类原则在 `prompts/structure.md`）；`commentary: true` 标出评论类（教程、观点）：报过的事件再有这类跟进，即使是当事方自己发的，日报也只放进快讯（除非有 4 家以上信源报道）；`feedLabel` 是分类 RSS 标题里的名字（不写就用 `label`）。要让一类在公开接口、RSS 和 MCP 里并进另一类发布（网页上照样分开），写在 `site.ts` 的 `PUBLIC_CATEGORIES`。
-- `RELEASE`：这个行业最受关注的那类发布（AI 行业是新模型），类别和标签都对上才算。日报报头的“N 个新模型”按它数（后台改了分类，已出的日报会重算）；`unit` 是数字后面的说法。没有这样一类的行业设成 `null`，报头就不显示这个数。
+- `RELEASE`：这个行业最受关注的那类发布，类别和标签都对上才算。日报报头的“N 个新模型”按它数（后台改了分类，已出的日报会重算）；`unit` 是数字后面的说法。论文站每一篇都是新论文，这里设为 `null`，报头改用 `REPORTS.metricUnits.firstPartyEvents` 的“篇顶刊”。
 - `PLAIN_TERMS`：周报月报的总述里可以直接写、不必在条目里找到出处的行业通用词（小写）。站名自动算在内。总述写了条目里没有的名字或数字就不用，见 [精选与校准](selection.md)。
-- `CATEGORY_TAGS`、`TOPIC_TAGS`、`ENTITY_TAGS`：模型打标签时只能从这里选。第一个标签必须是“分类标签”。`prompts/structure.md` 里还写着 AI 行业的标签规则（比如什么才算“模型发布”），换行业时一起改。
+- `CATEGORY_TAGS`、`TOPIC_TAGS`、`ENTITY_TAGS`：模型打标签时只能从这里选。第一个标签必须是“分类标签”。换学科时，`prompts/` 里的分类说明和标签规则一起改。
 - `TAG_SYNONYMS`：模型常写的近义词，统一成词表里的写法（比如“融资”记成“行业动态”）。换了词表，这里也换成新词表的近义词。
 - `ENTITIES`：行业里的主要公司或机构，用于“公司”类主题页。`aliases` 给结构化的模型看；`otherNames` 是公司自己的其他称呼（官方账号名、子品牌），把新闻的主体对到公司、判断标题有没有点名这家公司时也认它们。`IDENTITY_LEXICON`、`PUBLISHER_DOMAINS`、`IDENTITY_CONTEXT_ALIASES` 用来防止模型在标题摘要里写进原文没提到的公司：标题摘要里出现的公司，原文里也要出现过；`IDENTITY_CONTEXT_ALIASES` 列出原文里也算提到这家公司的写法（比如官方账号名）。别的行业没有这个需要可以清空。
 - `ITEM_TYPES`：内容类型，和评分提示词里的权重表对应，改了要一起改提示词。
@@ -104,7 +104,7 @@
 
 ## 5. 门槛与校准：`industry/selection.ts`
 
-两次评分之和 ≥ 2 × 门槛才够分（够分的还要过归组时的去重，见 [精选与校准](selection.md)）。默认门槛（T1 60、T1_5 65、T2 76）是 AIHOT 在 AI 领域校准出来的，换了行业和提示词，需要重新校准：
+两次评分之和 ≥ 2 × 门槛才够分（够分的还要过归组时的去重，见 [精选与校准](selection.md)）。论文站现在的门槛（T1 35、T1_5 40、T2 55）是“排序用的起点”，不是淘汰线；换了学科和提示词，仍应按下面的办法重新校准：
 
 1. 从你的信源里挑 100–200 条资料，自己标“该选 / 不该选”，存成 `.data/gold.jsonl`（格式见 [精选与校准](selection.md)，`industry/gold.example.jsonl` 有两条示例）。
 2. 运行 `node --env-file=.env scripts/eval-selection.ts --gold .data/gold.jsonl`，看准确率、查准率、查全率，和不同门槛下的结果。

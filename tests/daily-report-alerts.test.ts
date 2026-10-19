@@ -5,8 +5,15 @@ import { beijingAt } from "@aihot/contracts/time";
 import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
 import { checkAlerts, collectFindings } from "@aihot/backend/operations/alerts";
+import { EDITION_TIMES } from "@aihot/site";
 
-const at = (date: string, time = "10:00") => beijingAt(date, time).getTime();
+/** Two hours after the daily edition goes out: when a missing edition starts to be reported. */
+const OVERDUE = (() => {
+  const [hour, minute] = EDITION_TIMES.daily.split(":").map(Number);
+  return `${String(hour! + 2).padStart(2, "0")}:${String(minute!).padStart(2, "0")}`;
+})();
+const at = (date: string, time = OVERDUE) => beijingAt(date, time).getTime();
+const afterOverdue = (date: string, minutes: number) => at(date) + minutes * 60_000;
 const key = (date: string) => `report.daily:${date}`;
 const daily = (keys: string[]) => keys.filter(k => k.startsWith("report.daily"));
 async function report(date: string) {
@@ -30,12 +37,12 @@ test("midnight preserves a missing edition; each date recovers only when its rep
   result = await checkAlerts(at("2026-10-07"));
   assert.deepEqual(daily(result.open).sort(), [key("2026-10-06"), key("2026-10-07")]);
   await report("2026-10-07");
-  result = await checkAlerts(at("2026-10-07", "10:10"));
+  result = await checkAlerts(afterOverdue("2026-10-07", 10));
   assert.deepEqual(daily(result.sent), [`${key("2026-10-07")}:recovered`]);
   assert.deepEqual(daily(result.open), [key("2026-10-06")]);
   await report("2026-10-06");
-  assert.deepEqual(daily((await checkAlerts(at("2026-10-07", "10:20"))).sent), [`${key("2026-10-06")}:recovered`]);
-  assert.deepEqual(daily((await checkAlerts(at("2026-10-07", "10:30"))).sent), []);
+  assert.deepEqual(daily((await checkAlerts(afterOverdue("2026-10-07", 20))).sent), [`${key("2026-10-06")}:recovered`]);
+  assert.deepEqual(daily((await checkAlerts(afterOverdue("2026-10-07", 30))).sent), []);
 });
 
 test("recent gap detection uses report activity and each edition's overdue time", async () => {
@@ -62,7 +69,7 @@ test("open dates outlive disabled generation or startup grace within the scan wi
   assert.ok(result.sent.includes(key("2026-10-01")), "an unresolved edition in the window still gets reminders");
   process.env.COLLECT_ENABLED = "false";
   await report("2026-10-01");
-  assert.ok((await checkAlerts(at("2026-10-07", "10:10"))).sent.includes(`${key("2026-10-01")}:recovered`));
+  assert.ok((await checkAlerts(afterOverdue("2026-10-07", 10))).sent.includes(`${key("2026-10-01")}:recovered`));
 });
 
 test("an edition still missing past the scan window is closed once instead of reminded forever", async () => {

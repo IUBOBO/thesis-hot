@@ -4,10 +4,10 @@ import type { Route } from "./+types/all";
 import type { PoolResponse } from "@aihot/contracts/site";
 import { SITE, subjectAfter } from "@aihot/site";
 import { beijingTime } from "@aihot/contracts/time";
-import { cachedPage, loadOr404 } from "../lib/api.server";
+import { apiGet, cachedPage, loadOr404 } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";
 import { filterParams, hasFeedFilters, itemListLd, listPath, pageMeta, readFilters } from "../lib/seo";
-import { ActiveFilters, CategoryTabs, FeedBar, SearchField } from "../features/feed/Filters";
+import { ActiveFilters, CategoryTabs, FeedBar, FeedFilters, SearchField } from "../features/feed/Filters";
 import { PillTabs } from "../components/ui/Tabs";
 import { DayList, Pagination } from "../features/feed/DayList";
 import { EmptyState } from "../components/ui/Page";
@@ -29,6 +29,11 @@ export async function loader({ request }: Route.LoaderArgs) {
   const tab = url.searchParams.get("tab") === "relevance" ? "relevance" : null;
   // Older deep-paging parameters (deep, anchorAt) still open a normal page.
   const page = Math.min(Math.max(Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1, 1), 50);
+  // A DOI or arXiv number opens its report directly; any other search is a normal search.
+  if (q && /^(?:https?:\/\/(?:dx\.)?doi\.org\/)?10\.\d{4,9}\/\S+$|^(?:arxiv:)?\d{4}\.\d{4,5}(?:v\d+)?$/i.test(q)) {
+    const found = await apiGet<{ id: string }>(listPath("/api/site/lookup", { q }), { signal: request.signal }).catch(() => null);
+    if (found) throw redirect(`/items/${found.id}`);
+  }
   const data = await loadOr404<PoolResponse>(
     listPath("/api/site/pool", { ...filterParams(readFilters(url.searchParams)), q, tab, page: page > 1 ? page : null }),
     // The busy page keeps the search, so it can be tried again as it was.
@@ -55,6 +60,20 @@ export function meta({ loaderData }: Route.MetaArgs) {
   });
 }
 
+/** The terms to mark: operators and words after NOT are not highlights. */
+function highlightTerms(q: string): string[] {
+  const out: string[] = [];
+  let skip = false;
+  for (const token of q.split(/\s+/).filter(Boolean)) {
+    const operator = token.toUpperCase();
+    if (operator === "NOT") { skip = true; continue; }
+    if (operator === "AND" || operator === "OR") continue;
+    if (skip) { skip = false; continue; }
+    out.push(token);
+  }
+  return out.slice(0, 6);
+}
+
 function pageHref(params: URLSearchParams, page: number) {
   const sp = new URLSearchParams(params);
   sp.delete("deep");
@@ -73,7 +92,7 @@ export default function AllPage() {
   const f = data.filters;
   const busy = navigation.state === "loading" && navigation.location?.pathname === "/all";
   const { channel, category } = filterParams(f);
-  const keep = { channel, category };
+  const keep = { channel, category, kind: f.kind ?? null, oa: f.oa === null || f.oa === undefined ? null : f.oa ? "1" : "0", within: f.within ? String(f.within) : null };
   const searchTabHref = (tab: "time" | "relevance") => {
     const sp = new URLSearchParams(params);
     sp.delete("page");
@@ -81,6 +100,14 @@ export default function AllPage() {
     else sp.delete("tab");
     return `/all?${sp}`;
   };
+  const subscriptionHref = (() => {
+    const sp = new URLSearchParams(params);
+    sp.delete("page");
+    sp.delete("tab");
+    sp.delete("search");
+    const query = sp.toString();
+    return `/subscriptions${query ? `?${query}` : ""}`;
+  })();
   const title = f.q ? `搜索“${f.q}”` : f.tag ? `#${f.tag}` : null;
   const updated = beijingTime(data.freshness);
   // Searches are remembered in this browser for the phone search (listed in the privacy notice).
@@ -119,6 +146,8 @@ export default function AllPage() {
         </div>
       </div>
 
+      <FeedFilters base="/all" filters={f} />
+
       {f.q && (
         <div className="mb-3 mt-1 flex flex-wrap items-center justify-between gap-2 lg:mt-0">
           <PillTabs
@@ -128,8 +157,9 @@ export default function AllPage() {
             active={f.tab}
             items={(["time", "relevance"] as const).map((t) => ({ key: t, label: t === "time" ? "最新（标题与摘要）" : "全文相关", to: searchTabHref(t) }))}
           />
-          <span className="text-[12px] text-ink-4">
-            找到 <span className="num">{data.total >= 2000 ? "2000+" : data.total}</span> 条 · 更新于 <span className="num">{updated}</span>
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-4">
+            <span>找到 <span className="num">{data.total >= 2000 ? "2000+" : data.total}</span> 条 · 更新于 <span className="num">{updated}</span></span>
+            <Link to={subscriptionHref} className="font-medium text-ink-3 transition-colors hover:text-accent">订阅这个搜索 →</Link>
           </span>
         </div>
       )}
@@ -151,7 +181,7 @@ export default function AllPage() {
             </EmptyState>
           </div>
         ) : (
-          <DayList items={data.items} todayCount={f.q ? null : data.todayCount} />
+          <DayList items={data.items} todayCount={f.q ? null : data.todayCount} highlight={f.q ? highlightTerms(f.q) : undefined} />
         )}
       </div>
       <Pagination page={data.page} pageCount={data.pageCount} href={(p) => pageHref(params, p)} />

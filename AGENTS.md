@@ -1,10 +1,10 @@
 # 给 Agent 的说明
 
-这是一个行业热点网站的框架：采集信源、用模型筛选和写作、归组事件、出日报周报月报，并通过网站、RSS、公开 API、Agent Markdown 和 MCP 对外提供。默认配置是一个 AI 行业的示例站。先读 README，再按任务读 `docs/` 里对应的文档。
+这是一个行业热点网站的框架：采集信源、用模型筛选和写作、归组事件、出日报周报月报，并通过网站、RSS、公开 API、Agent Markdown 和 MCP 对外提供。这个仓库已经按论文站 Thesis NH 配置：学科是人工智能、计算机、遥感、石油、电子信息、机械、材料、化工、能源；信源是期刊（OpenAlex）、arXiv 与论文动态；日报按学科分节。先读 README，再按任务读 `docs/` 里对应的文档。
 
-## 最常见的任务：改成另一个行业
+## 最常见的任务：站点、行业与信源
 
-按 `docs/customize.md` 的顺序做。这个站自己的东西在 `site/`：站名文案（`site.ts`）、每一步的模型（`models.ts`）、品牌与 Logo（`brand/`）、条款页（`pages/`）、发布在网站根目录的固定文件（`public/`，替换占位符后发布）、更新日志（`changelog.json`）。行业知识在 `industry/`：分类标签（`taxonomy.ts`）、主题（`topics.json`）、示范信源（`sources.json`）、提示词（`prompts/`）、门槛（`selection.ts`）。通常不需要改 `apps/` 和 `packages/`；框架里没有、只有这个站要的功能，做成模块放进 `modules/`（`docs/architecture.md` 的“模块”）。
+站点的名字、文案、每一步的模型、品牌、条款页和更新日志在 `site/`；学科分类（`taxonomy.ts`）、主题（`topics.json`）、信源（`sources.json` 与 `journals.json`）、提示词（`prompts/`）、门槛（`selection.ts`）在 `industry/`。`docs/customize.md` 是从框架自带的示例站换成另一个行业的完整步骤；加一本期刊只改 `industry/journals.json`。通常不需要改 `apps/` 和 `packages/`；框架里没有、只有这个站要的功能，做成模块放进 `modules/`（`docs/architecture.md` 的“模块”）。
 
 这些事要问使用者本人，不要替他决定：站名；要盯哪些信源；什么消息重要、什么是噪声；分类怎么分；条款和隐私说明的内容（`site/pages/` 是模板，上线前需要他本人确认）。
 

@@ -10,6 +10,7 @@ import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { loadReport } from "@aihot/backend/publication/reports";
 import { composeDaily, dueDaily, dueMonthly, dueWeekly } from "@aihot/backend/reports/compose";
+import { arrangeDaily, type EditionEntry } from "@aihot/backend/reports/edition";
 import { SITE } from "@aihot/site";
 
 const T = tag();
@@ -54,4 +55,26 @@ test("a weekly that froze no summaries shows the articles' public summaries", as
   await sql`UPDATE sources SET tier = 'T1_5', first_party = true WHERE id = ${SOURCE}`;
   await publishArticle(articleId);
   assert.equal((await loadReport("weekly", WEEK))?.sections[0]?.items[0]?.firstParty, false);
+});
+
+/** A ranked daily entry; only the fields arrangeDaily reads. */
+function entry(sourceId: string, index: number, importance: number): EditionEntry {
+  return {
+    entry: {
+      itemId: `${sourceId}-${index}`, factId: null, storyPublicId: null, title: `${sourceId} ${index}`,
+      summary: "", sourceName: sourceId, sourceUrl: "", sourceId, firstParty: true, role: "news",
+      score: 80, publishedAt: "2026-10-19T00:00:00Z", sources: 1,
+    },
+    category: "ai", tags: [], storyId: null, mentions: new Set(), sourceIds: new Set([sourceId]),
+    authority: 0, importance, previous: null,
+  };
+}
+
+test("one journal fills at most five flashes, and later sources take the rest", () => {
+  const busy = Array.from({ length: 7 }, (_, i) => entry("busy", i, 100 - i));
+  const others = Array.from({ length: 20 }, (_, i) => entry(`other-${Math.floor(i / 2)}`, i % 2, 80 - i));
+  const { main, flashes } = arrangeDaily([...busy, ...others].sort((a, b) => b.importance - a.importance));
+  assert.equal(main.length, 12);
+  assert.equal(flashes.length, 10);
+  assert.equal(flashes.filter((f) => f.entry.sourceId === "busy").length, 5);
 });

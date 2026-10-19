@@ -1,19 +1,26 @@
 // One report in a feed. Desktop (≥ 961px): a white card beside the time rail. Phones: a compact row with
 // the time in the source line, the bookmark at hand, the reason in one line and duplicate reports
 // behind one button that opens a sheet. One markup, two presentations.
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { Link } from "react-router";
 import { IntentLink } from "../../components/ui/IntentLink";
 import type { GroupInfo, FeedItemSummary, TimelineFilters } from "@aihot/contracts/site";
 import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
 import { ITEM_COPY } from "@aihot/site";
+import { IconCalendar } from "../../components/icons";
 import { SameEventBadge, SelectedBadge } from "../../components/ui/Badge";
 import { ScoreLabel } from "../../components/ui/Score";
-import { beijingTime } from "@aihot/contracts/time";
+import { beijingDate } from "@aihot/contracts/time";
+import { readerText } from "../../lib/format";
 import { MediaThumbs, SourceLine, StarButton } from "./parts";
 import { GroupButton, GroupSources } from "./ReadingGroup";
 import { QuotedLine } from "../item/QuotedPost";
 import { rememberPreview } from "../item/preview";
+
+/** arXiv listings are preprints: not yet peer reviewed. */
+function isPreprint(sourceName: string): boolean {
+  return /^arXiv\b/i.test(sourceName);
+}
 
 export interface FeedItemProps {
   item: FeedItemSummary;
@@ -25,9 +32,29 @@ export interface FeedItemProps {
   showTags?: boolean;
   /** The time the item sits at in its list; phones show it in the source line (desktop: on the rail). */
   at?: string;
+  /** Search terms to mark in the title and summary (search results only). */
+  highlight?: string[];
+  /** The first card of the featured page: a larger title and a trace of accent. */
+  hero?: boolean;
 }
 
-export const FeedItem = memo(function FeedItem({ item, group, filters, read = false, onOpen, showTags = false, at }: FeedItemProps) {
+/** A small color mark per discipline, so the feed has some hue without painting whole cards. */
+const CATEGORY_DOT: Record<string, string> = {
+  ai: "#6366f1", cs: "#0ea5e9", rs: "#10b981", petroleum: "#f59e0b", electronics: "#8b5cf6",
+  mechanical: "#64748b", materials: "#ec4899", chemical: "#14b8a6", energy: "#ef4444",
+};
+
+/** The text with each search term marked, so a result says why it matched. */
+function highlighted(text: string, terms: string[] | undefined): ReactNode {
+  const list = (terms ?? []).map((t) => t.trim()).filter(Boolean);
+  if (list.length === 0) return text;
+  const pattern = new RegExp(`(${list.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
+  return text.split(pattern).map((part, i) => i % 2 === 1
+    ? <mark key={i} className="rounded-[3px] bg-accent-soft px-[1px] text-inherit">{part}</mark>
+    : part);
+}
+
+export const FeedItem = memo(function FeedItem({ item, group, filters, read = false, onOpen, showTags = false, at, highlight, hero = false }: FeedItemProps) {
   const isX = item.channel === "x" && !!item.x;
   const open = () => {
     rememberPreview(item);
@@ -37,12 +64,15 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
   const tags = showTags ? item.tags.slice(0, 3) : [];
 
   return (
-    <article className="relative min-w-0 lg:card lg:card-hover lg:px-[18px] lg:pb-[14px] lg:pt-[15px]" data-item-id={item.id}>
-      <header className="flex min-h-[22px] items-center gap-1.5 text-[12.5px] leading-[18px] text-ink-4 lg:min-h-[18px] lg:gap-2">
-        <SourceLine item={item} className="text-ink-4" />
-        {at && (
-          <time dateTime={at} className="mono shrink-0 text-[12px] lg:hidden">
-            · {beijingTime(at)}
+    <article className={`relative min-w-0 lg:card lg:card-hover lg:px-5 lg:pb-4 lg:pt-4 ${hero ? "lg:ring-1 lg:ring-accent/15" : ""}`} data-item-id={item.id}>
+      <header className="flex min-h-[22px] items-center gap-1.5 text-[13px] leading-[18px] text-ink-4 lg:min-h-[18px] lg:gap-2">
+        <SourceLine item={item} />
+        {item.publishedAt && (
+          <time dateTime={item.publishedAt} title={`发表于 ${beijingDate(item.publishedAt)}`}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-soft px-1.5 py-0.5 text-[11.5px] font-semibold text-amber-ink">
+            <IconCalendar size={11} className="shrink-0" />
+            <span className="hidden lg:inline">{beijingDate(item.publishedAt)}</span>
+            <span className="lg:hidden">{beijingDate(item.publishedAt).slice(5)}</span>
           </time>
         )}
         {item.selected && (
@@ -50,13 +80,11 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
             {item.sameEvent ? <SameEventBadge /> : <SelectedBadge />}
           </span>
         )}
+        {isPreprint(item.source.name) && (
+          <span title="预印本：尚未经过同行评审" className="shrink-0 rounded-full px-1.5 py-px text-[11px] text-ink-3 ring-1 ring-inset ring-line-soft">预印本</span>
+        )}
         <span className="ml-auto flex shrink-0 items-center gap-1 pl-2 lg:gap-1.5">
-          <span className="hidden lg:inline-flex">
-            <ScoreLabel score={item.score} />
-          </span>
-          <span className="lg:hidden">
-            <ScoreLabel score={item.score} compact />
-          </span>
+          <ScoreLabel score={item.score} />
           <span className="-my-[11px] -mr-3 inline-flex lg:-my-1 lg:mr-0">
             <StarButton item={item} className="size-11 lg:size-[26px]" />
           </span>
@@ -71,17 +99,26 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
         </p> : <IntentLink viewTransition to={`/items/${item.id}`} onClick={open} aria-label={`查看 ${item.x!.authorName} 的帖子`} className="absolute inset-0" />
       ) : (
         <>
-          <h3 className={`mt-1.5 line-clamp-2 text-[17px] font-[650] leading-[1.5] lg:mt-2 lg:line-clamp-none lg:leading-[1.55] ${read ? "text-ink-4" : "text-ink"}`}>
+          <h3 className={`mt-1.5 line-clamp-2 font-[650] leading-[1.5] lg:mt-2 lg:line-clamp-none ${hero ? "text-[20px] lg:text-[23px] lg:leading-[1.4]" : "text-[18px] lg:text-[19.5px] lg:leading-[1.55]"} ${read ? "text-ink-4" : "text-ink"}`}>
             <IntentLink viewTransition to={`/items/${item.id}`} onClick={open} className="after:absolute after:inset-0 after:content-['']">
-              {item.title}
+              {highlighted(readerText(item.title), highlight)}
             </IntentLink>
           </h3>
-          {item.summary && <p className="mt-1 line-clamp-2 text-[14.5px] leading-[1.7] text-ink-3 lg:mt-2 lg:line-clamp-3 lg:text-[15px] lg:leading-[1.75]">{item.summary}</p>}
+          {item.summary && <p className={`mt-1.5 line-clamp-2 leading-[1.7] text-ink-3 lg:mt-2 lg:line-clamp-3 ${hero ? "text-[15.5px] lg:text-[16.5px] lg:leading-[1.75]" : "text-[15px] lg:text-[16px] lg:leading-[1.75]"}`}>{highlighted(readerText(item.summary), highlight)}</p>}
         </>
       )}
 
       {isX && item.x!.media.length > 0 && <MediaThumbs media={item.x!.media} className="mt-2.5" />}
       {isX && item.x!.quoted?.text && <QuotedLine quoted={item.x!.quoted} />}
+
+      {!showTags && item.category && (
+        <div className="relative z-10 mt-2.5 flex items-center gap-2 text-[12.5px]">
+          <Link to={`/all?category=${item.category}`} className="inline-flex items-center gap-1.5 rounded-full bg-bg-sunk px-2.5 py-0.5 text-ink-3 transition-colors hover:text-ink">
+            <span className="size-1.5 rounded-full" style={{ backgroundColor: CATEGORY_DOT[item.category] ?? "#94a3b8" }} aria-hidden />
+            {CATEGORY_LABELS[item.category]}
+          </Link>
+        </div>
+      )}
 
       {(tags.length > 0 || (showTags && item.category)) && (
         <div className="relative z-10 mt-2 hidden flex-wrap gap-x-2.5 gap-y-1 text-[12px] text-ink-4 lg:flex">

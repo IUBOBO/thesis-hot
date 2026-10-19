@@ -1,5 +1,5 @@
 // Item detail and Markdown export, both behind the same visibility and licence rules.
-import type { OutlineEntry, SiteItemDetail, StoryRef } from "@aihot/contracts/site";
+import type { OutlineEntry, PaperFacts, SiteItemDetail, StoryRef } from "@aihot/contracts/site";
 import { ITEM_COPY, SITE } from "@aihot/site";
 import { bodyToMarkdown } from "../content/markdown.ts";
 import { sql } from "../db.ts";
@@ -18,6 +18,7 @@ interface DetailRow extends ItemRow {
   body_status: string;
   tr_html: string | null;
   tr_complete: boolean | null;
+  openalex: Record<string, any> | null;
   topics: string[];
 }
 
@@ -39,10 +40,52 @@ function withOutline(html: string): { html: string; outline: OutlineEntry[] } {
   return { html: out, outline };
 }
 
+const CODE_HOSTS = /(^|\.)(github\.com|gitlab\.com|bitbucket\.org|huggingface\.co|sourceforge\.net)$/i;
+const DATA_HOSTS = /(^|\.)(zenodo\.org|figshare\.com|osf\.io|dryad\.org|dataverse\.harvard\.edu|data\.mendeley\.com|kaggle\.com)$/i;
+
+/** Code and data addresses in an abstract, classified by host; readers are told they are unverified. */
+export function linksFromText(text: string | null): PaperFacts["links"] {
+  if (!text) return [];
+  const out: PaperFacts["links"] = [];
+  const seen = new Set<string>();
+  for (const raw of text.match(/https?:\/\/[^\s<>"')\]},]+/g) ?? []) {
+    const url = raw.replace(/[.,;:]+$/, "");
+    let host = "";
+    try {
+      host = new URL(url).hostname.toLowerCase();
+    } catch {
+      continue;
+    }
+    const kind = CODE_HOSTS.test(host) ? "code" : DATA_HOSTS.test(host) ? "data" : null;
+    if (!kind || seen.has(url)) continue;
+    seen.add(url);
+    out.push({ url, kind });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+/** The publication facts recorded by the journal import (raw.openalex); null when there are none. */
+function paperFacts(openalex: Record<string, any> | null, bodyText: string | null): PaperFacts | null {
+  if (!openalex || typeof openalex !== "object") return null;
+  const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const facts: PaperFacts = {
+    journal: text(openalex.journal),
+    volume: text(openalex.volume),
+    issue: text(openalex.issue),
+    institutions: text(openalex.institutions),
+    // The journal import puts the abstract in the article's text, not the publisher's full text.
+    abstract: text(bodyText),
+    links: linksFromText(bodyText),
+    isOa: typeof openalex.isOa === "boolean" ? openalex.isOa : null,
+  };
+  return facts.journal || facts.volume || facts.issue || facts.institutions || facts.abstract || facts.links.length || facts.isOa !== null ? facts : null;
+}
+
 async function loadRow(id: string): Promise<DetailRow | null> {
   const [row] = await sql<DetailRow[]>`
     SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete,
-      ${topicMembership()} AS topics
+      a.raw->'openalex' AS openalex, ${topicMembership()} AS topics
     ${ITEM_FROM}
     WHERE p.article_id = ${id}`;
   return row ?? null;
@@ -93,6 +136,7 @@ export async function loadItemDetail(id: string, language: "zh" | "original" = "
       x: null,
       readingMode: "summary-only",
       author: null,
+      paper: null,
       body: null,
       outline: [],
       relatedStories: [],
@@ -154,6 +198,7 @@ export async function loadItemDetail(id: string, language: "zh" | "original" = "
     ...(sameEvent ? { reason: null, sameEvent } : {}),
     readingMode: "full",
     author: row.author,
+    paper: paperFacts(row.openalex, row.body_text),
     body: reading.body,
     outline: reading.outline,
     relatedStories: related,

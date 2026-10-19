@@ -1,6 +1,9 @@
-// 这个行业的分类体系：类别、标签词表、公司（主体）名录，以及防止张冠李戴的身份词典。
+// 这个行业的分类体系：类别、标签词表、机构名录，以及防止张冠李戴的身份词典。
 // 模型按这里的词表打标签，主题页（topics.json）按标签归类，筛选栏按类别分组。
 // 换行业时：类别的 key 会出现在网址里（/all?category=…），上线后就不要再改；标签和名录可以随时增减。
+//
+// Thesis NH 的类别就是学科：人工智能、计算机、遥感、石油，以及工科的电子信息、机械、材料、化工、能源。
+// 日报按这里的 section 分节，每个学科各自成节，读者一次只看自己关心的那一节。
 
 /**
  * 网页上的类别（筛选栏、卡片角标、RSS 分类订阅）。key 是网址和接口里的身份，上线后不要改。
@@ -11,143 +14,130 @@
  * feedLabel 是分类 RSS 标题里的名字（不写就用 label）。公开接口、RSS 和 MCP 里要把一类并进另一类发布，写在站点设置里（site/site.ts 的 PUBLIC_CATEGORIES）。
  */
 export const CATEGORIES = [
-  { key: "ai-models", label: "模型", feedLabel: "AI 模型", section: "模型发布/更新", guide: "模型本身的发布、版本、权重开放、能力或价格变化，以及既有榜单上的模型成绩。公布一次跑分不是发布新基准，也不是教程。" },
-  { key: "ai-products", label: "产品", feedLabel: "AI 产品", section: "产品发布/更新", guide: "可使用的 AI 产品、功能、应用、工具、API、平台和工程组件的发布更新。模型厂商发布的推理框架、算子库、硬件适配组件仍是产品，不能因为厂商名归成模型。" },
-  { key: "industry", label: "行业", feedLabel: "行业动态", section: "行业动态", guide: "已发生的公司经营、融资并购、人事、合作、诉讼、政策、真实安全事故及调查进展。新闻由当事人发帖、带有态度，也不因此变成观点。" },
-  { key: "paper", label: "论文", feedLabel: "论文", section: "论文研究", guide: "以新研究方法、实验设计与发现为核心的论文、技术报告、新基准或研究数据集。系统性红队实验属于研究；既有榜单成绩归模型，真实事故的新闻调查归行业。" },
-  { key: "tip", label: "教程", section: "技巧与观点", guide: "读者可以照着使用的方法、提示词、工具用法、工程实践复盘与技术讲解。重点是可复用的做法；单纯发布工具归产品，只有态度和预测而无做法归观点。", commentary: true },
-  { key: "opinion", label: "观点", section: "技巧与观点", guide: "重点是作者的解释、判断、主张、预测、评论或访谈观点。讨论市场不自动归行业，作者是名人不自动归观点。", commentary: true },
+  { key: "ai", label: "人工智能", feedLabel: "AI 论文", section: "人工智能", guide: "机器学习、大模型、智能体、多模态、强化学习等以智能方法为核心的论文。用 AI 解决别的学科的问题、贡献在应用侧的，归到那个学科。" },
+  { key: "cs", label: "计算机", feedLabel: "计算机论文", section: "计算机", guide: "系统、网络、数据库、软件工程、安全、体系结构、程序语言、理论等计算机方向的论文。以机器学习方法本身为贡献的归人工智能。" },
+  { key: "rs", label: "遥感", feedLabel: "遥感论文", section: "遥感", guide: "对地观测、卫星与航空影像、高光谱、SAR、点云与摄影测量、定量遥感反演、遥感数据集与解译方法的论文。用通用视觉模型但任务和评估都在遥感上的，归遥感。" },
+  { key: "petro", label: "石油", feedLabel: "石油论文", section: "石油", guide: "油气勘探与开发、储层与地质、钻完井、测井、油藏工程、提高采收率、地球化学、油气加工的论文。与油气场景无关的，归材料、化工或能源。" },
+  { key: "ee", label: "电子信息", feedLabel: "电子信息论文", section: "电子信息", guide: "通信、信号处理、微电子与集成电路、半导体器件、光电子、雷达与天线、电力电子的论文。以机器学习方法为贡献的归人工智能；以遥感载荷或影像为对象的归遥感。" },
+  { key: "mech", label: "机械", feedLabel: "机械论文", section: "机械", guide: "机械设计与制造、机器人本体与控制（非学习方法）、振动与故障诊断、摩擦磨损、流体机械、加工与增材制造、结构力学的论文。以机器人学习方法为核心的归人工智能。" },
+  { key: "mat", label: "材料", feedLabel: "材料论文", section: "材料", guide: "金属、陶瓷、高分子、复合材料、纳米与功能材料的合成、结构、性能与表征的论文。只做材料在油气场景应用的归石油；只做电池器件的归能源。" },
+  { key: "chem", label: "化工", feedLabel: "化工论文", section: "化工", guide: "化学工程、催化、反应工程、分离过程、过程强化与化工设计的论文。石油炼制与油气加工归石油；只做燃料燃烧的归能源。" },
+  { key: "energy", label: "能源", feedLabel: "能源论文", section: "能源", guide: "新能源（电池、光伏、氢能、储能）、能源转换与利用、燃烧与燃料、可再生能源系统的论文。油气勘探开发归石油。" },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; feedLabel?: string; section: string; guide: string; commentary?: true }>;
 
 /**
- * 这个行业最受关注的一类发布（AI 行业是新模型）：日报报头的“N 个新模型”、改分类后修订已出的报告都按它数。
+ * 这个行业最受关注的那类发布（AI 行业是新模型）：日报报头的“N 个新模型”、改分类后修订已出的报告都按它数。
  * category 是类别，tag 是标签，两者都对上才算；unit 接在数字后面。
  * 没有这样一类的行业设成 null，报头就不显示这个数。
+ *
+ * 论文站不设：每一篇都是“新论文”，用类别加标签去数只会数到某一个学科，
+ * 报头改用 metricUnits.firstPartyEvents 的“篇顶刊”。
  */
-export const RELEASE: { category: string; tag: string; unit: string } | null = { category: "ai-models", tag: "模型发布", unit: "个新模型" };
+export const RELEASE: { category: string; tag: string; unit: string } | null = null;
 
 /** 周报月报的总述可以直接写、不必在报道里找到出处的行业通用词（小写）。站名会自动算进去。 */
-export const PLAIN_TERMS: readonly string[] = ["ai", "api", "llm", "gpu", "agi", "ceo", "ipo"];
+export const PLAIN_TERMS: readonly string[] = ["ai", "llm", "gpu", "sar", "doi", "cnn", "transformer", "lidar", "sota"];
 
 /**
  * 内容理解一步给每篇资料判的“内容类型”（写在 prompts/content-understanding.md 里，改了类型要同步改那份提示词）。
  * 评分提示词（prompts/selection-score.md）按类型给五个维度不同的权重。
  */
-export const ITEM_TYPES = ["model_release", "product_launch", "tool_or_prompt", "research_paper", "industry_event", "opinion_analysis", "tutorial_explainer"] as const;
+export const ITEM_TYPES = ["new_paper", "venue_paper", "method", "dataset", "survey", "code_release", "commentary"] as const;
 
 // ── 标签词表 ────────────────────────────────────────────────────────────────────────────
 
 /** 每篇资料的第一个标签必须是这些“分类标签”之一。 */
 export const CATEGORY_TAGS = [
-  "产品更新", "模型发布", "论文/研究", "开源/仓库", "教程/实践", "现象/趋势", "大佬观点", "评测/基准", "安全/对齐", "行业动态", "政策/监管",
-  "非AI/通用工具", "其他",
+  "新论文", "顶刊接收", "方法", "数据集/基准", "综述", "开源/复现", "解读/观点", "撤稿/更正", "学术动态", "其他",
 ] as const;
 
-/** 可选的主题标签。 */
+/** 可选的主题标签：研究方向。 */
 export const TOPIC_TAGS = [
-  "Agent", "编码", "推理", "多模态", "语音", "视频", "图像生成", "RAG", "端侧", "数据/训练", "搜索", "部署/工程", "开源生态", "具身智能", "MCP/工具调用",
+  "大模型", "多模态", "Agent", "计算机视觉", "强化学习", "图学习", "优化/理论", "系统/工程",
+  "高光谱", "SAR", "光学遥感", "点云/摄影测量", "定量遥感",
+  "储层/地质", "钻完井", "测井", "油气开发", "地球化学",
 ] as const;
 
-/** 可选的实体标签（公司、机构、平台）。 */
-export const ENTITY_TAGS = ["OpenAI", "Anthropic", "DeepSeek", "DeepMind", "Google", "Meta", "Microsoft", "xAI", "Hugging Face", "GitHub", "arXiv"] as const;
+/** 可选的实体标签（机构、实验室、期刊平台）。 */
+export const ENTITY_TAGS = ["arXiv", "中科院", "武汉大学", "清华大学", "北京大学", "中国石油", "中国石化", "DeepMind", "OpenAI", "MIT", "Stanford"] as const;
 
 /** 模型常写的近义词，统一成词表里的写法。 */
 export const TAG_SYNONYMS: Readonly<Record<string, string>> = {
-  "教程/玩法": "教程/实践", "技巧/最佳实践": "教程/实践", "合作/生态": "行业动态", "融资/收购": "行业动态", "公司动态": "行业动态",
-  合作: "行业动态", 生态: "行业动态", 融资: "行业动态", 收购: "行业动态", 投资: "行业动态", 并购: "行业动态",
-  政策: "政策/监管", 监管: "政策/监管", 法规: "政策/监管", 安全: "安全/对齐", 对齐: "安全/对齐",
-  论文: "论文/研究", 研究: "论文/研究", paper: "论文/研究", papers: "论文/研究",
-  "open-source": "开源/仓库", 开源: "开源/仓库", 仓库: "开源/仓库", repo: "开源/仓库",
-  教程: "教程/实践", 玩法: "教程/实践", 指南: "教程/实践", 技巧: "教程/实践", 最佳实践: "教程/实践", 实践: "教程/实践",
-  产品: "产品更新", 更新: "产品更新", 发布: "模型发布", 模型: "模型发布", 趋势: "现象/趋势", 现象: "现象/趋势", 观点: "大佬观点",
-  视频生成: "视频", 非ai: "非AI/通用工具", "non-ai": "非AI/通用工具", 通用工具: "非AI/通用工具", 工程工具: "非AI/通用工具",
-  安全扫描: "非AI/通用工具", devops: "非AI/通用工具", 行业: "行业动态", 动态: "行业动态",
+  论文: "新论文", 预印本: "新论文", preprint: "新论文", paper: "新论文", 研究: "新论文",
+  顶会: "顶刊接收", 接收: "顶刊接收", camera_ready: "顶刊接收", 正式发表: "顶刊接收", 期刊: "顶刊接收",
+  数据集: "数据集/基准", benchmark: "数据集/基准", 基准: "数据集/基准", 评测: "数据集/基准",
+  综述: "综述", survey: "综述", review: "综述",
+  开源: "开源/复现", 代码: "开源/复现", 复现: "开源/复现", repo: "开源/复现", github: "开源/复现",
+  解读: "解读/观点", 观点: "解读/观点", 评论: "解读/观点", 评述: "解读/观点",
+  撤稿: "撤稿/更正", 更正: "撤稿/更正", 勘误: "撤稿/更正",
+  方法: "方法", 模型: "方法", 算法: "方法", 网络: "方法",
+  遥感影像: "光学遥感", 卫星影像: "光学遥感", remote_sensing: "定量遥感",
+  合成孔径雷达: "SAR", sar: "SAR", 高光谱影像: "高光谱", hyperspectral: "高光谱",
+  摄影测量: "点云/摄影测量", 点云: "点云/摄影测量", 三维重建: "点云/摄影测量",
+  油藏: "油气开发", 采油: "油气开发", 压裂: "油气开发", 提高采收率: "油气开发", eor: "油气开发",
+  钻井: "钻完井", 完井: "钻完井",
+  储层: "储层/地质", 地质: "储层/地质", 沉积: "储层/地质",
+  测井: "测井", 地球物理: "测井",
+  地球化学: "地球化学", 烃源岩: "地球化学",
+  大语言模型: "大模型", llm: "大模型", gpt: "大模型",
+  视觉: "计算机视觉", cv: "计算机视觉",
+  智能体: "Agent", agent: "Agent",
+  理论: "优化/理论", 优化: "优化/理论",
+  工程: "系统/工程", 系统: "系统/工程",
 };
 
-// ── 公司与主体 ──────────────────────────────────────────────────────────────────────────
+// ── 机构与主体 ──────────────────────────────────────────────────────────────────────────
 
 /**
- * 公司主题：id → 显示名、卡片上显示的标签（null 表示只用 entity:<id> 归类）、别名。
- * aliases 给结构抽取模型看；otherNames 是公司自己的其他称呼（官方账号名、子品牌），
+ * 机构主题：id → 显示名、卡片上显示的标签（null 表示只用 entity:<id> 归类）、别名。
+ * aliases 给结构抽取模型看；otherNames 是机构自己的其他称呼（实验室名、子品牌），
  * 把事实的主体对到发布方时也认它们。
  */
 export const ENTITIES: Record<string, { name: string; displayTag: string | null; aliases: string[]; otherNames?: string[] }> = {
-  "world-labs": { name: "World Labs", displayTag: null, aliases: ["World Labs"] },
-  "thinking-machines": { name: "Thinking Machines Lab", displayTag: null, aliases: ["Thinking Machines"] },
-  amd: { name: "AMD", displayTag: null, aliases: ["AMD", "Advanced Micro Devices"] },
-  openai: { name: "OpenAI", displayTag: "OpenAI", aliases: ["OpenAI", "ChatGPT", "Sora", "Codex", "GPT"], otherNames: ["OpenAI Developers"] },
-  anthropic: { name: "Anthropic", displayTag: "Anthropic", aliases: ["Anthropic", "Claude"], otherNames: ["Claude Code"] },
-  google: { name: "Google", displayTag: "Google", aliases: ["Google", "DeepMind", "Gemini", "谷歌"], otherNames: ["Google DeepMind", "Google Research", "Google AI", "Google Labs", "Google Cloud"] },
+  cas: { name: "中国科学院", displayTag: null, aliases: ["中国科学院", "中科院", "CAS"], otherNames: ["空天信息创新研究院", "地理科学与资源研究所", "遥感与数字地球研究所", "自动化研究所", "计算技术研究所"] },
+  whu: { name: "武汉大学", displayTag: null, aliases: ["武汉大学", "Wuhan University"], otherNames: ["测绘遥感信息工程国家重点实验室", "LIESMARS"] },
+  thu: { name: "清华大学", displayTag: null, aliases: ["清华大学", "Tsinghua"], otherNames: ["清华"] },
+  pku: { name: "北京大学", displayTag: null, aliases: ["北京大学", "Peking University"], otherNames: ["北大"] },
+  zju: { name: "浙江大学", displayTag: null, aliases: ["浙江大学", "Zhejiang University"], otherNames: ["浙大"] },
+  cug: { name: "中国地质大学", displayTag: null, aliases: ["中国地质大学", "China University of Geosciences"], otherNames: ["地大"] },
+  cup: { name: "中国石油大学", displayTag: null, aliases: ["中国石油大学", "China University of Petroleum"], otherNames: ["石大", "中石大"] },
+  petrochina: { name: "中国石油", displayTag: null, aliases: ["中国石油", "PetroChina", "CNPC"], otherNames: ["中国石油天然气集团", "勘探开发研究院"] },
+  sinopec: { name: "中国石化", displayTag: null, aliases: ["中国石化", "Sinopec"], otherNames: ["中国石油化工集团", "石油勘探开发研究院"] },
+  mit: { name: "MIT", displayTag: null, aliases: ["MIT", "Massachusetts Institute of Technology"] },
+  stanford: { name: "Stanford", displayTag: null, aliases: ["Stanford", "斯坦福"] },
+  deepmind: { name: "Google DeepMind", displayTag: "DeepMind", aliases: ["DeepMind", "Google DeepMind"] },
+  openai: { name: "OpenAI", displayTag: "OpenAI", aliases: ["OpenAI"] },
+  anthropic: { name: "Anthropic", displayTag: "Anthropic", aliases: ["Anthropic", "Claude"] },
+  google: { name: "Google", displayTag: "Google", aliases: ["Google", "DeepMind", "Gemini", "谷歌"] },
+  meta: { name: "Meta", displayTag: "Meta", aliases: ["Meta", "Llama"] },
+  microsoft: { name: "Microsoft", displayTag: "Microsoft", aliases: ["Microsoft", "微软"] },
   deepseek: { name: "DeepSeek", displayTag: "DeepSeek", aliases: ["DeepSeek", "深度求索"] },
-  qwen: { name: "千问 Qwen", displayTag: null, aliases: ["Qwen", "通义", "阿里"], otherNames: ["通义千问", "千问", "千问APP", "Qwen Team", "通义实验室", "阿里巴巴", "Alibaba", "阿里云", "Alibaba Cloud"] },
-  kimi: { name: "Kimi / 月之暗面", displayTag: null, aliases: ["Kimi", "月之暗面", "Moonshot"], otherNames: ["Moonshot AI"] },
-  minimax: { name: "MiniMax", displayTag: null, aliases: ["MiniMax", "海螺"], otherNames: ["稀宇科技"] },
-  zhipu: { name: "智谱 GLM", displayTag: null, aliases: ["智谱", "GLM", "Z.ai"], otherNames: ["智谱AI", "Zhipu", "Zhipu AI"] },
-  xai: { name: "xAI", displayTag: "xAI", aliases: ["xAI", "Grok"], otherNames: ["SpaceXAI"] },
-  meta: { name: "Meta", displayTag: "Meta", aliases: ["Meta", "Llama"], otherNames: ["Meta AI", "AI at Meta"] },
-  microsoft: { name: "Microsoft", displayTag: "Microsoft", aliases: ["Microsoft", "微软", "Copilot"], otherNames: ["Microsoft Research", "Microsoft AI"] },
-  nvidia: { name: "NVIDIA", displayTag: null, aliases: ["NVIDIA", "英伟达"] },
-  "hugging-face": { name: "Hugging Face", displayTag: "Hugging Face", aliases: ["Hugging Face"], otherNames: ["HuggingFace"] },
+  minimax: { name: "MiniMax", displayTag: null, aliases: ["MiniMax", "海螺"] },
+  huggingface: { name: "Hugging Face", displayTag: "Hugging Face", aliases: ["Hugging Face"] },
+  kimi: { name: "Kimi / 月之暗面", displayTag: null, aliases: ["Kimi", "月之暗面", "Moonshot"] },
   cursor: { name: "Cursor", displayTag: null, aliases: ["Cursor", "Anysphere"] },
-  openrouter: { name: "OpenRouter", displayTag: null, aliases: ["OpenRouter"] },
 };
 
 /**
- * 身份词典：摘要和标题里出现的公司，必须在原文里也出现过，否则退回原标题、丢掉摘要（防止模型张冠李戴）。
+ * 身份词典：摘要和标题里出现的机构，必须在原文里也出现过，否则退回原标题、丢掉摘要（防止模型张冠李戴）。
  * 行业没有这个问题时可以留空数组。
  */
 export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; patterns: RegExp[] }> = [
-  { id: "openai", name: "OpenAI", patterns: [/openai|chatgpt|\bgpt-?[o\d]|\bsora\b|\bcodex\b/i] },
-  { id: "anthropic", name: "Anthropic", patterns: [/anthropic|\bclaude\b/i, /\b(?:opus|sonnet|haiku)\s*\d+(?:[.\-]\d+)*\b/i, /\bfable\s*\d+(?:[.\-]\d+)*\b|\bmythos\b/i] },
-  { id: "google", name: "Google / Gemini", patterns: [/google|deepmind|\bgemini\b|notebooklm|\bveo\s?\d|\bAlphaFold\b|\bAMIE\b/i] },
-  { id: "deepseek", name: "DeepSeek", patterns: [/deepseek|深度求索/i] },
-  { id: "xai", name: "xAI / Grok", patterns: [/\bxai\b|\bgrok\b/i] },
-  { id: "meta", name: "Meta / Llama", patterns: [/\bMeta\b/, /\bmeta\s?ai\b|\bllama\b/i] },
-  { id: "microsoft", name: "Microsoft / Copilot", patterns: [/microsoft|copilot|微软/i] },
-  { id: "nvidia", name: "NVIDIA", patterns: [/nvidia|英伟达|\bnemotron\b|\bnemo\b|\bblackwell\b|\brubin(?:\s+ultra)?\b|\bcuda\b/i] },
-  { id: "qwen", name: "千问 Qwen", patterns: [/\bqwen|通义|千问/i] },
-  { id: "hugging-face", name: "Hugging Face", patterns: [/hugging\s?face/i] },
-  { id: "cursor", name: "Cursor", patterns: [/\bCursor\b/] },
-  { id: "kimi", name: "Kimi / 月之暗面", patterns: [/\bkimi\b|月之暗面|\bmoonshot\s?ai\b/i] },
-  { id: "openrouter", name: "OpenRouter", patterns: [/openrouter/i] },
-  { id: "minimax", name: "MiniMax", patterns: [/minimax/i] },
-  { id: "zhipu", name: "智谱 GLM", patterns: [/智谱|\bglm-?[4-9]/i] },
-  { id: "hunyuan", name: "腾讯混元", patterns: [/混元|hunyuan/i] },
-  { id: "doubao", name: "字节豆包", patterns: [/豆包|doubao|字节跳动|bytedance/i] },
-  { id: "mistral", name: "Mistral", patterns: [/mistral/i] },
-  { id: "perplexity", name: "Perplexity", patterns: [/\bPerplexity\b/] },
-  { id: "runway", name: "Runway", patterns: [/\brunway\b/i] },
-  { id: "suno", name: "Suno", patterns: [/\bsuno\b/i] },
-  { id: "midjourney", name: "Midjourney", patterns: [/midjourney/i] },
-  { id: "stability-ai", name: "Stability AI", patterns: [/stability\s?ai/i] },
-  { id: "elevenlabs", name: "ElevenLabs", patterns: [/eleven\s?labs/i] },
-  { id: "vllm", name: "vLLM", patterns: [/\bvllm\b/i] },
-  { id: "ollama", name: "Ollama", patterns: [/\bollama\b/i] },
-  { id: "windsurf", name: "Windsurf", patterns: [/windsurf/i] },
-  { id: "devin", name: "Devin", patterns: [/\bdevin\b/i] },
-  { id: "manus", name: "Manus", patterns: [/\bmanus\b/i] },
-  { id: "apple", name: "Apple AI", patterns: [/\bapple\s?(intelligence|silicon|ai)\b|苹果(智能|\s?AI)/i] },
-  { id: "amazon", name: "Amazon / AWS", patterns: [/amazon|\baws\b|亚马逊/i] },
-  { id: "baidu", name: "百度文心", patterns: [/百度|baidu|文心|\bernie\s?bot\b/i] },
+  { id: "cas", name: "中国科学院", patterns: [/中国科学院|中科院|\bCAS\b/] },
+  { id: "whu", name: "武汉大学", patterns: [/武汉大学|\bWuhan University\b/] },
+  { id: "cug", name: "中国地质大学", patterns: [/中国地质大学|\bChina University of Geosciences\b/] },
+  { id: "cup", name: "中国石油大学", patterns: [/中国石油大学|\bChina University of Petroleum\b/] },
+  { id: "petrochina", name: "中国石油", patterns: [/中国石油(?!大学)|PetroChina|\bCNPC\b/] },
+  { id: "sinopec", name: "中国石化", patterns: [/中国石化|Sinopec/] },
+  { id: "deepmind", name: "Google DeepMind", patterns: [/deepmind/i] },
+  { id: "openai", name: "OpenAI", patterns: [/\bOpenAI\b/] },
 ];
 
-/** 这些域名上的文章，发布方就是对应的公司（托管平台如 GitHub、arXiv 不算）。 */
-export const PUBLISHER_DOMAINS: ReadonlyArray<{ entityId: string; domains: readonly string[] }> = [
-  { entityId: "openai", domains: ["openai.com"] },
-  { entityId: "anthropic", domains: ["anthropic.com", "claude.com"] },
-  { entityId: "google", domains: ["deepmind.google", "ai.google", "blog.google"] },
-  { entityId: "deepseek", domains: ["deepseek.com"] },
-  { entityId: "xai", domains: ["x.ai"] },
-  { entityId: "meta", domains: ["ai.meta.com"] },
-  { entityId: "microsoft", domains: ["microsoft.com"] },
-  { entityId: "nvidia", domains: ["nvidia.com"] },
-  { entityId: "qwen", domains: ["qwen.ai"] },
-  { entityId: "cursor", domains: ["cursor.com"] },
-  { entityId: "openrouter", domains: ["openrouter.ai"] },
-];
+/**
+ * 这些域名上的文章，发布方就是对应的机构（托管平台如 GitHub、arXiv 不算）。
+ * 论文站的“发布方”是期刊或会议，不是实验室，所以这里留空。
+ */
+export const PUBLISHER_DOMAINS: ReadonlyArray<{ entityId: string; domains: readonly string[] }> = [];
 
-/** 原文里的这些写法也算提到了对应公司。 */
-export const IDENTITY_CONTEXT_ALIASES: ReadonlyArray<{ entityId: string; pattern: RegExp }> = [
-  { entityId: "meta", pattern: /@AIatMeta\b/i },
-  { entityId: "zhipu", pattern: /\bZhipu(?:\s+AI\b|['’]s\b)/i },
-];
+/** 原文里的这些写法也算提到了对应机构。 */
+export const IDENTITY_CONTEXT_ALIASES: ReadonlyArray<{ entityId: string; pattern: RegExp }> = [];

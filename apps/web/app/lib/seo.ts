@@ -44,25 +44,38 @@ export function listPath(path: string, params: Record<string, string | number | 
   return qs ? `${path}?${qs}` : path;
 }
 
-/** The feed filters an address asks for; an unknown channel or category means none. */
+/** The feed filters an address asks for; an unknown channel, category or kind means none. */
 export function readFilters(params: URLSearchParams): TimelineFilters {
   const channel = params.get("channel") ?? "all";
   const category = params.get("category");
+  const kind = params.get("kind");
+  const oa = params.get("oa");
+  const within = Number(params.get("within"));
   return {
     channel: isChannelKey(channel) ? channel : "all",
     category: category && isCategoryKey(category) ? category : null,
     tag: params.get("tag")?.trim() || null,
+    kind: kind === "paper" || kind === "preprint" ? kind : null,
+    oa: oa === "1" ? true : oa === "0" ? false : null,
+    within: within === 7 || within === 30 || within === 365 ? within : null,
   };
 }
 
 /** Feed filters as list address parameters: the default channel and unset filters are left out. */
 export function filterParams(f: TimelineFilters) {
-  return { channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag };
+  return {
+    channel: f.channel === "all" ? null : f.channel,
+    category: f.category,
+    tag: f.tag,
+    kind: f.kind ?? null,
+    oa: f.oa === null || f.oa === undefined ? null : f.oa ? 1 : 0,
+    within: f.within ?? null,
+  };
 }
 
 /** Filter combinations are browsing views; the unfiltered feed and its archive pages remain indexable. */
 export function hasFeedFilters(filters: TimelineFilters | undefined): boolean {
-  return !!filters && (filters.channel !== "all" || !!filters.category || !!filters.tag);
+  return !!filters && (filters.channel !== "all" || !!filters.category || !!filters.tag || !!filters.kind || filters.oa !== null && filters.oa !== undefined || !!filters.within);
 }
 
 /** "Title · Site". */

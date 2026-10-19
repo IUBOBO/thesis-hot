@@ -39,7 +39,7 @@ test("origin-form slashes keep the router's homepage and unknown-route semantics
   for (const method of ["GET", "HEAD"] as const) {
     const home = await raw("/", method);
     assert.equal(home.status, 200, web.logs());
-    for (const path of ["//", "////", "//?category=ai-models"]) {
+    for (const path of ["//", "////", "//?category=ai"]) {
       const res = await raw(path, method);
       assert.equal(res.status, 200, `${method} ${path}: ${web.logs()}`);
       assert.equal(res.headers["content-type"], home.headers["content-type"]);
@@ -54,5 +54,6 @@ test("origin-form slashes keep the router's homepage and unknown-route semantics
     }
   }
   assert.equal(web.logs(), "");
-  assert.ok(upstreamPaths.every((path) => path.startsWith("/api/site/")));
+  // The page's own data and its modules' blocks both go through the api; nothing else is proxied.
+  assert.ok(upstreamPaths.every((path) => path.startsWith("/api/")), upstreamPaths.join(", "));
 });

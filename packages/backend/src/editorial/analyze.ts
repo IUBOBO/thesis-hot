@@ -495,7 +495,9 @@ export function normalizeAnalysis(run: AnalysisRun) {
   const sum = values?.length === SCORE_CALLS ? values.reduce((total, v) => total + v, 0) : null;
   const score = sum === null ? null : Math.floor(sum / SCORE_CALLS);
   const threshold = run.scores?.threshold ?? null;
-  const selected = relevance === "pass" && sum !== null && threshold !== null && sum >= threshold * SCORE_CALLS;
+  // Model-written copy must say why it is worth reading; without that line it is not selected.
+  const hasReason = run.writing?.kind !== "understand" || !!run.writing.reasonZh?.trim();
+  const selected = relevance === "pass" && hasReason && sum !== null && threshold !== null && sum >= threshold * SCORE_CALLS;
   const subjects = run.structure?.subjects ?? [];
   const tags = [...(run.structure?.tags ?? [])];
   for (const s of subjects) {

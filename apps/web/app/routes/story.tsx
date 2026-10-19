@@ -15,6 +15,7 @@ import { isReload } from "../lib/restore";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
 import { PillTabs } from "../components/ui/Tabs";
 import { Select } from "../components/ui/Controls";
+import { SourceTag } from "../components/ui/SourceTag";
 import { IconArrowLeft, IconChevronRight, IconClock, IconDoc, IconUsers } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import { inNav } from "../components/shell/nav";
@@ -152,7 +153,7 @@ function TimelineRow({ r }: { r: StoryReportView }) {
       </time>
       <div className="min-w-0">
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] leading-[20px] text-ink-4 lg:mt-0">
-          <span className="min-w-0 truncate">{r.source.name}</span>
+          <SourceTag name={r.source.name} size="sm" />
           {r.selected && <SelectedBadge />}
         </div>
         <IntentLink viewTransition to={`/items/${r.id}`} className="mt-1 block text-[16px] font-[650] leading-[1.6] text-ink transition-colors hover:text-accent lg:text-[15.5px]">
@@ -225,7 +226,7 @@ export default function StoryPage() {
   ), [story.developments, order]);
   const newest = story.latestReport;
   const overview = story.digest
-    ? { label: "AI 综述", text: story.digest, note: story.digestUpdatedAt ? `AI 根据报道生成 · ${relativeTime(story.digestUpdatedAt)}更新` : "AI 根据报道生成" }
+    ? { label: "论文综述", text: story.digest, note: story.digestUpdatedAt ? `模型根据原文生成 · ${relativeTime(story.digestUpdatedAt)}更新` : "模型根据原文生成" }
     : story.summary
       ? { label: "事实说明", text: story.summary, note: null }
       : story.excerpt
@@ -441,7 +442,7 @@ export default function StoryPage() {
               <ul className="mt-1 divide-y divide-line-soft">
                 {story.officialReports.slice(0, 5).map((r) => (
                   <li key={r.id} className="py-3">
-                    <div className="truncate text-[11.5px] text-ink-4">{r.source.name}</div>
+                    <SourceTag name={r.source.name} size="sm" />
                     <Link viewTransition to={`/items/${r.id}`} className="group mt-1 block text-[13.5px] font-semibold leading-[1.6] text-ink transition-colors hover:text-accent">
                       {r.title}
                       <IconChevronRight size={13} className="ml-0.5 inline -translate-y-px text-ink-4 transition-transform group-hover:translate-x-0.5" />

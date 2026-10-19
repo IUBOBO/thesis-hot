@@ -4,6 +4,7 @@ import type { FeedItemSummary, MediaView } from "@aihot/contracts/site";
 import { IconBookmark } from "../../components/icons";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
 import { Lightbox } from "../../components/ui/Lightbox";
+import { SourceTag } from "../../components/ui/SourceTag";
 import { toggleStar, useIsStarred } from "../../lib/local-state";
 
 /** The source's name, or, for X, avatar + display name + @handle. */
@@ -17,7 +18,7 @@ export function SourceLine({ item, className = "" }: { item: Pick<FeedItemSummar
       </span>
     );
   }
-  return <span className={`min-w-0 truncate ${className}`}>{item.source.name}</span>;
+  return <SourceTag name={item.source.name} className={className} />;
 }
 
 /** Up to four media thumbnails, kept small in lists (the detail page shows them larger). Videos are stills. */

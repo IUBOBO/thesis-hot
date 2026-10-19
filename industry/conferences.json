@@ -1,0 +1,27 @@
+{
+  "$comment": "会议通过 arXiv 的备注（comment）字段跟踪。scripts/conferences.ts 按 query 搜索备注，排除 exclude 里的字样后入库；只收最近 N 天提交的论文。会议正式论文集常常滞后，arXiv 备注是公开可查的替代线索。",
+  "conferences": [
+    {
+      "slug": "neurips",
+      "name": "NeurIPS",
+      "discipline": "人工智能",
+      "query": "NeurIPS",
+      "exclude": ["workshop", "under review", "submitted", "submission", "submit to", "in submission", "about to commit"]
+    },
+    {
+      "slug": "icml",
+      "name": "ICML",
+      "discipline": "人工智能",
+      "query": "ICML",
+      "exclude": ["workshop", "under review", "submitted", "submission", "submit to", "in submission", "about to commit"]
+    },
+    {
+      "slug": "iclr",
+      "name": "ICLR",
+      "discipline": "人工智能",
+      "query": "ICLR",
+      "require": "(accepted|published|to appear|proceedings)[^.]{0,60}\\bICLR\\b|\\bICLR\\b[^.]{0,60}(accepted|published|to appear|proceedings)",
+      "exclude": ["workshop", "under review", "submitted", "submission", "submit to", "in submission", "about to commit"]
+    }
+  ]
+}

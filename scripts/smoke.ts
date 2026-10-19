@@ -25,9 +25,10 @@ const MACHINE: Array<[path: string, type: RegExp]> = [
 ];
 
 let failed = 0;
-async function check(path: string, expect: (res: Response, body: string) => string | null) {
+/** `follow`: a page that permanently moved still has to answer with a page at its new address. */
+async function check(path: string, expect: (res: Response, body: string) => string | null, follow = false) {
   try {
-    const res = await fetch(base + path, { redirect: "manual", signal: AbortSignal.timeout(30_000) });
+    const res = await fetch(base + path, { redirect: follow ? "follow" : "manual", signal: AbortSignal.timeout(30_000) });
     const body = res.headers.get("content-type")?.startsWith("image/") ? "" : await res.text();
     const problem = res.status !== 200 ? `HTTP ${res.status}` : expect(res, body);
     console.log(`${problem ? "✗" : "✓"} ${path}${problem ? `  ${problem}` : ""}`);
@@ -40,7 +41,7 @@ async function check(path: string, expect: (res: Response, body: string) => stri
 
 // Pages write the name as HTML text: a name such as "MyF&B" appears as "MyF&amp;B".
 const htmlName = SITE.name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
-for (const path of PAGES) await check(path, (_res, body) => (body.includes(SITE.name) || body.includes(htmlName) ? null : `the page does not name ${SITE.name}`));
+for (const path of PAGES) await check(path, (_res, body) => (body.includes(SITE.name) || body.includes(htmlName) ? null : `the page does not name ${SITE.name}`), true);
 for (const [path, type] of MACHINE) await check(path, (res) => (type.test(res.headers.get("content-type") ?? "") ? null : `content-type ${res.headers.get("content-type")}`));
 // MCP: the handshake answers with the site's server name.
 const mcp = await fetch(`${base}/api/mcp`, {

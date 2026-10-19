@@ -7,6 +7,7 @@ import { InvalidCursorError } from "@aihot/backend/lib/cursor";
 import { exportMarkdown, loadItemDetail } from "@aihot/backend/publication/detail";
 import { loadPool, SearchBusyError } from "@aihot/backend/publication/pool";
 import { loadTimeline } from "@aihot/backend/publication/timeline";
+import { findItemByIdentifier, identifierOf } from "@aihot/backend/publication/lookup";
 import { loadStoryFollowups } from "@aihot/backend/publication/followups";
 import { loadGroupReports } from "@aihot/backend/publication/groups";
 import { hotSearchLinks, loadHotStrip } from "@aihot/backend/publication/hot";
@@ -45,7 +46,12 @@ export interface FilterParams {
   channel: ChannelKey;
   category: CategoryKey | null;
   tag: string | null;
+  kind: "paper" | "preprint" | null;
+  oa: boolean | null;
+  within: number | null;
 }
+
+const WITHIN_DAYS = new Set([7, 30, 365]);
 
 export function parseFilters(q: Record<string, string>): FilterParams {
   const channel = q.channel ?? "all";
@@ -53,7 +59,13 @@ export function parseFilters(q: Record<string, string>): FilterParams {
   const category = q.category ?? null;
   if (category !== null && !isCategoryKey(category)) throw new BadRequest("invalid category");
   const tag = q.tag?.trim() ? q.tag.trim().slice(0, 60) : null;
-  return { channel, category: category as CategoryKey | null, tag };
+  const kind = q.kind === "paper" || q.kind === "preprint" ? q.kind : null;
+  if (q.kind && kind === null) throw new BadRequest("invalid kind");
+  const oa = q.oa === "1" ? true : q.oa === "0" ? false : null;
+  if (q.oa && oa === null) throw new BadRequest("invalid oa");
+  const within = q.within ? Number(q.within) : null;
+  if (within !== null && !WITHIN_DAYS.has(within)) throw new BadRequest("invalid within");
+  return { channel, category: category as CategoryKey | null, tag, kind, oa, within };
 }
 
 export function registerSite(app: FastifyInstance) {
@@ -65,7 +77,7 @@ export function registerSite(app: FastifyInstance) {
     const q = looseQuery(req);
     const filters = parseFilters(q);
     const limit = Math.min(Math.max(Number(q.limit) || 20, 1), 40);
-    const unfiltered = filters.channel === "all" && !filters.category && !filters.tag && !q.cursor;
+    const unfiltered = filters.channel === "all" && !filters.category && !filters.tag && !filters.kind && filters.oa === null && !filters.within && !q.cursor;
     const [data, hot] = await Promise.all([
       loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
       unfiltered ? loadHotStrip() : null,
@@ -73,6 +85,13 @@ export function registerSite(app: FastifyInstance) {
     // Any cache in front and the home page built from this answer share one absolute deadline.
     reply.header("X-Accel-Expires", `@${Math.floor(Date.now() / 1000) + 60}`);
     return sendJsonWithEtag(req, reply, { ...data, hot }, { etagPrefix: "tl", cacheControl: "public, max-age=60, s-maxage=60" });
+  }));
+
+  app.get("/api/site/lookup", siteHandler(async (req, reply) => {
+    const identifier = identifierOf(String(looseQuery(req).q ?? ""));
+    const id = identifier ? await findItemByIdentifier(identifier) : null;
+    if (!id) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "no report for this identifier" });
+    return sendJsonWithEtag(req, reply, { id }, { etagPrefix: "lookup", cacheControl: "public, max-age=60, s-maxage=60" });
   }));
 
   app.get("/api/site/pool", siteHandler(async (req, reply) => {

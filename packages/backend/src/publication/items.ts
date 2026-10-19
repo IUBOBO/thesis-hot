@@ -1,14 +1,14 @@
 // Public read layer, item level. Every exit (site API, v1, RSS, MCP, sitemap) reads
 // items through these columns and views; which rows are public is decided by scope.ts.
 import { CATEGORY_KEYS, toPublicApiCategory, type CategoryKey, type ChannelKey, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import type { FeedItemSummary, ItemSummary, MediaView, XPostView } from "@aihot/contracts/site";
+import type { FeedItemSummary, ItemSummary, MediaView, SourceKind, XPostView } from "@aihot/contracts/site";
 import { POLICY } from "@aihot/site";
 import { sql, type Db } from "../db.ts";
 import { isEmptyOrLinkOnly } from "../content/posts.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { sourceOwnsPost } from "../sources/account.ts";
 import { displayTags, publicSourceName } from "./rules.ts";
-import { foldableSelectionCondition, seatedCondition } from "./scope.ts";
+import { foldableSelectionCondition, listedCondition, seatedCondition } from "./scope.ts";
 
 export interface ItemRow {
   id: string;
@@ -94,6 +94,44 @@ export function publicCategoryCondition(category: PublicApiCategoryKey | null | 
 export function tagCondition(tag: string | null | undefined) {
   if (!tag) return sql``;
   return sql`AND p.tags @> ${[tag]}::text[]`;
+}
+
+/** One source's reports: a journal's own page and feed (site/modules), not a public filter. */
+export function sourceCondition(sourceId: string | null | undefined) {
+  if (!sourceId) return sql``;
+  return sql`AND p.source_id = ${sourceId}`;
+}
+
+/** arXiv is recognised by its address; a journal paper is one the import recorded from OpenAlex. */
+const ARXIV_URL = sql`p.url ~* '^https?://(www\\.)?arxiv\\.org/'`;
+
+/** Journal/venue papers or arXiv preprints. A paper is a record the journal import kept, not any post. */
+export function sourceKindCondition(kind: SourceKind | null | undefined) {
+  if (!kind) return sql``;
+  if (kind === "preprint") return sql`AND ${ARXIV_URL}`;
+  return sql`AND NOT (${ARXIV_URL}) AND EXISTS (
+    SELECT 1 FROM articles kind_article WHERE kind_article.id = p.article_id AND kind_article.raw ? 'openalex')`;
+}
+
+/** Open access per the publisher's record; a paper without that record is left out either way. */
+export function openAccessCondition(oa: boolean | null | undefined) {
+  if (oa === null || oa === undefined) return sql``;
+  return sql`AND EXISTS (
+    SELECT 1 FROM articles oa_article WHERE oa_article.id = p.article_id
+      AND oa_article.raw->'openalex'->>'isOa' = ${oa ? "true" : "false"})`;
+}
+
+/** Published within some days (the day it was first seen when the source has no date). */
+export function withinDaysCondition(days: number | null | undefined, now: Date) {
+  if (!days) return sql``;
+  const from = new Date(now.getTime() - days * 86400_000);
+  return sql`AND coalesce(p.published_at, p.timeline_at) >= ${from}`;
+}
+
+/** Reports at or after an instant in the timeline's order: a paper's first appearance on its day. */
+export function sinceCondition(since: Date | null | undefined) {
+  if (!since) return sql``;
+  return sql`AND p.timeline_at >= ${since}`;
 }
 
 function mediaView(m: Record<string, any>, mode: "card" | "thumb" | "full" = "thumb", responsive = false): MediaView | null {
@@ -197,6 +235,30 @@ export function isChineseBody(a: { language?: string | null; body_text?: string 
 /** The complete Chinese translation an export (Markdown, full RSS) carries; a page also shows a partial one. */
 export function exportTranslation(a: { language?: string | null; body_text?: string | null; tr_html?: string | null; tr_complete?: boolean | null }): string | null {
   return !isChineseBody(a) && a.tr_html && a.tr_complete ? a.tr_html : null;
+}
+
+/**
+ * The public cards of these reports, by id: a module that ranks its own candidates (a heat board) reads
+ * them through the same columns and scope as every list, and an id that is no longer listed is missing.
+ */
+export async function listedItems(ids: readonly string[], now: Date = new Date()): Promise<Map<string, FeedItemSummary>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const rows = await sql<ItemRow[]>`SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN ${sql(unique)} AND ${listedCondition(now)}`;
+  return new Map(rows.map((row) => [row.id, toFeedItemSummary(row)]));
+}
+
+/**
+ * The original address of each listed report among `ids`: a feed or a module page that links readers to
+ * the publisher (the listing cards do not carry it).
+ */
+export async function originalUrls(ids: readonly string[], now: Date = new Date()): Promise<Map<string, string>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const rows = await sql<{ id: string; url: string }[]>`
+    SELECT p.article_id AS id, p.url FROM publications p
+    WHERE p.article_id IN ${sql(unique)} AND ${listedCondition(now)}`;
+  return new Map(rows.map((row) => [row.id, row.url]));
 }
 
 /**

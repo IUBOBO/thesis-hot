@@ -53,7 +53,7 @@ export function McpPanel(props: AgentPanelProps) {
           {client === "other" && <p className="mt-3">{`在客户端的 MCP 或连接器设置里新建一项：名称填 ${name}，地址填上面的网址，认证选“无”，不要填 API Key。只支持本地命令的客户端，先用它自带的远程 MCP 代理。`}</p>}
         </Step>
         <Step n={3} title="让 Agent 调一次">
-          <Ask text={`请调用 ${T.latest}，告诉我过去 24 小时最重要的${subjectAfter(" 5 条", "资讯")}，并附 ${SITE.name} 链接。`} />
+          <Ask text={`请调用 ${T.latest}，告诉我过去 24 小时最重要的5 篇论文，并附 ${SITE.name} 链接。`} />
           <p className="mt-2 text-[13px] text-ink-3">{`客户端显示调用了 ${T.latest}，回答里有时间范围、中文摘要和 ${new URL(props.base).host} 链接，就是连上了。`}</p>
         </Step>
       </Steps>
@@ -63,13 +63,13 @@ export function McpPanel(props: AgentPanelProps) {
           head={["工具", "能做什么", "可以这样问"]}
           minWidth={600}
           rows={[
-            [<Mono>{T.latest}</Mono>, "过去 24 小时或最近 7 天的精选、全部资讯", `${subjectAfter("今天有什么", "新闻")}？`],
+            [<Mono>{T.latest}</Mono>, "过去 24 小时或最近 7 天的精选与全部论文", `今天有什么论文？`],
             [<Mono>{T.search}</Mono>, AGENT.search.scope, AGENT.search.ask],
             [<Mono>{T.hot}</Mono>, "当前热点榜 Top 10", "现在最热的是什么？"],
             [<Mono>{T.story}</Mono>, "一个热点事件的时间线和持续更新的综述", "这件事的来龙去脉？"],
             [<Mono>{T.daily}</Mono>, subjectAfter("最新或指定日期的", "日报"), "给我今天的日报。"],
-            [<Mono>{T.weekly}</Mono>, subjectAfter("最新或指定一周的", "周报"), `${subjectAfter("这周", "圈")}有哪些大事？`],
-            [<Mono>{T.monthly}</Mono>, subjectAfter("最新或指定月份的", "月报"), `${subjectAfter("上个月", "圈")}发生了什么？`],
+            [<Mono>{T.weekly}</Mono>, subjectAfter("最新或指定一周的", "周报"), `这周有哪些新论文？`],
+            [<Mono>{T.monthly}</Mono>, subjectAfter("最新或指定月份的", "月报"), `上个月有哪些新论文？`],
             ...AGENT_PARTS.flatMap((a) => a.tools ?? []).map((t) => [<Mono>{t.name}</Mono>, t.does, t.ask]),
           ]}
         />
@@ -163,7 +163,7 @@ export function RssPanel(props: AgentPanelProps) {
 }
 
 const RECIPES = [
-  { key: "latest", label: "盯最新资讯" },
+  { key: "latest", label: "盯最新论文" },
   { key: "sync", label: "同步全部精选" },
 ];
 
@@ -171,7 +171,7 @@ export function ApiPanel(props: AgentPanelProps) {
   const { base, tag } = props;
   const userAgent = [ACCESS.userAgent, TAG && tag ? TAG.userAgent(tag) : null].filter(Boolean).join(" ");
   const curl = `curl --compressed${userAgent ? ` -A '${userAgent}'` : ""}`;
-  let pace = `内容多久变一次：新资讯全天陆续进来，精选每天变几次到几十次，日报${EDITION_WHEN.daily}、周报${EDITION_WHEN.weekly}、月报${EDITION_WHEN.monthly}（北京时间）各一期。`;
+  let pace = `内容多久变一次：新论文全天陆续进来，精选每天变几次到几十次，日报${EDITION_WHEN.daily}、周报${EDITION_WHEN.weekly}、月报${EDITION_WHEN.monthly}（北京时间）各一期。`;
   if (ACCESS.ratePerMinute) pace += `同一个 IP 每分钟超过约 ${ACCESS.ratePerMinute} 次会收到 429，请按 Retry-After 等待，不要并发重试。`;
   const [recipe, setRecipe] = useState<string>("latest");
   const recipes = AGENT_PARTS.flatMap((a) => a.recipes ?? []);
@@ -184,7 +184,7 @@ export function ApiPanel(props: AgentPanelProps) {
       <CodeBlock className="mt-6" title="第一个请求" lang="bash" code={`${curl} '${items}'`} />
 
       <Block title="按分类筛选">
-        <p>在资讯请求中加上 <Mono>category</Mono>，只取对应分类；不传则包含全部分类。返回条目的 <Mono>category</Mono> 也使用下表中的值。</p>
+        <p>在请求中加上 <Mono>category</Mono>，只取对应分类；不传则包含全部分类。返回条目的 <Mono>category</Mono> 也使用下表中的值。</p>
         <Table head={["分类", "请求参数"]} rows={FEED_CATEGORIES.map(([key, name]) => [name, <Mono>{`category=${key}`}</Mono>])} />
       </Block>
 
@@ -193,7 +193,7 @@ export function ApiPanel(props: AgentPanelProps) {
           items={[
             { title: "开压缩", text: <>curl 加 <Mono>--compressed</Mono>，其他客户端打开 gzip 或 br。JSON 压缩后只有原来的 1/4 到 1/8。</> },
             { title: "带上 ETag", text: <>保存响应里的 ETag，下次带 <Mono>If-None-Match</Mono>；内容没变时返回 304，不传正文。</> },
-            { title: "按节奏取", text: `资讯和热点最快一分钟一次；日报${EDITION_WHEN.daily} 后取一次，周报、月报出刊后取一次；往回翻页翻到已有的那条就停。` },
+            { title: "按节奏取", text: `论文和热点最快一分钟一次；日报${EDITION_WHEN.daily} 后取一次，周报、月报出刊后取一次；往回翻页翻到已有的那条就停。` },
           ]}
         />
         <p className="mt-3 text-[13px] leading-[1.75] text-ink-3">{pace}</p>
@@ -204,11 +204,11 @@ export function ApiPanel(props: AgentPanelProps) {
           head={["路径", "用来做什么", "多久取一次"]}
           minWidth={640}
           rows={[
-            { group: "资讯" },
+            { group: "论文" },
             [<Mono>/api/v1/items</Mono>, "精选或最近 7 天全部动态，可按分类、时间窗、关键词筛", "最快 1 分钟一次"],
             { group: "热点与事件" },
             [<Mono>/api/v1/hot-topics</Mono>, "当前热点榜 Top 10", "最快 1 分钟一次"],
-            [<Mono>{"/api/v1/stories/{publicId}"}</Mono>, "一个事件的报道时间线、AI 综述和关联事件", "需要时"],
+            [<Mono>{"/api/v1/stories/{publicId}"}</Mono>, "一个事件的报道时间线、论文综述和关联事件", "需要时"],
             { group: "日报" },
             [<Mono>/api/v1/dailies/latest</Mono>, "最新一期日报", `${EDITION_WHEN.daily} 后一次`],
             [<Mono>{"/api/v1/dailies/{date}"}</Mono>, "指定日期日报；撤稿会移除引用", "缓存过期后使用前验证 ETag"],

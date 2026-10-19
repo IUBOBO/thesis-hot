@@ -99,10 +99,19 @@ export interface HotStripEntry {
   participantCount: number;
 }
 
+/** Where a paper came from: a journal/venue record or an arXiv preprint. */
+export type SourceKind = "paper" | "preprint";
+
 export interface TimelineFilters {
   channel: ChannelKey;
   category: CategoryKey | null;
   tag: string | null;
+  /** Journal/venue papers or arXiv preprints only; null lists both. */
+  kind?: SourceKind | null;
+  /** Open access per the publisher's record; null when not filtering. */
+  oa?: boolean | null;
+  /** Published (else first seen) within this many days; null when not filtering. */
+  within?: number | null;
 }
 
 export interface TimelineResponse {
@@ -111,6 +120,10 @@ export interface TimelineResponse {
   nextCursor: string | null;
   hot: HotStripEntry[] | null;
   dayCounts: Record<string, number>;
+  /** When the listed reports were last updated (the same clock as the report list's "更新于"). */
+  freshness: string;
+  /** The newest original publication time among the listed reports, or null when none has one. */
+  latestPublishedAt: string | null;
 }
 
 export interface PoolResponse {
@@ -133,7 +146,24 @@ export interface OutlineEntry {
  * An article page (/api/site/items/:id) in one language: Chinese (the article itself or its translation)
  * unless …/original asks for the original. Only the body shown is sent, with its outline.
  */
+/** The publication facts of a journal paper, when the import recorded them; null for news and posts. */
+export interface PaperFacts {
+  journal: string | null;
+  volume: string | null;
+  issue: string | null;
+  /** The authors' institutions as the import recorded them, joined with "、"; null when none were recorded. */
+  institutions: string | null;
+  /** The English abstract the import kept as the article's text; null when there is none to show. */
+  abstract: string | null;
+  /** Code or data addresses found in the abstract; the reader should check them before trusting them. */
+  links: Array<{ url: string; kind: "code" | "data" }>;
+  /** Open access per the publisher's record; null when unknown. */
+  isOa: boolean | null;
+}
+
 export interface SiteItemDetail extends ItemSummary {
+  /** Absent on fixtures and older answers; the server always sends it (null when there is nothing to show). */
+  paper?: PaperFacts | null;
   /** The post with all its media; its text is the body. */
   x: Omit<XPostView, "text" | "translation"> | null;
   /** Selected, but its fact's seat is held by this report: marked 同新闻, without a reason of its own. */

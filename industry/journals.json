@@ -1,0 +1,66 @@
+{
+  "$comment": "期刊清单：抓取脚本 scripts/journals.ts 按 ISSN 从 OpenAlex 拉最近上线的论文。加刊只要往这里加一条。ISSN 已于 2026-10-18 逐条对照 OpenAlex sources 接口核实；会议类还没有接入（见 md/实施任务清单.md 的 A5）。",
+  "journals": [
+    { "issn": "0004-3702", "name": "Artificial Intelligence", "discipline": "人工智能", "tier": "T1" },
+    { "issn": "1532-4435", "name": "Journal of Machine Learning Research", "discipline": "人工智能", "tier": "T1" },
+    { "issn": "0162-8828", "name": "IEEE Transactions on Pattern Analysis and Machine Intelligence", "discipline": "人工智能", "tier": "T1" },
+    { "issn": "0885-6125", "name": "Machine Learning", "discipline": "人工智能", "tier": "T1" },
+    { "issn": "0893-6080", "name": "Neural Networks", "discipline": "人工智能", "tier": "T1" },
+    { "issn": "2162-237X", "name": "IEEE Transactions on Neural Networks and Learning Systems", "discipline": "人工智能", "tier": "T1" },
+
+    { "issn": "0360-0300", "name": "ACM Computing Surveys", "discipline": "计算机", "tier": "T1" },
+    { "issn": "1045-9219", "name": "IEEE Transactions on Parallel and Distributed Systems", "discipline": "计算机", "tier": "T1" },
+    { "issn": "0098-5589", "name": "IEEE Transactions on Software Engineering", "discipline": "计算机", "tier": "T1" },
+    { "issn": "0001-0782", "name": "Communications of the ACM", "discipline": "计算机", "tier": "T1" },
+    { "issn": "1041-4347", "name": "IEEE Transactions on Knowledge and Data Engineering", "discipline": "计算机", "tier": "T1" },
+    { "issn": "1545-5971", "name": "IEEE Transactions on Dependable and Secure Computing", "discipline": "计算机", "tier": "T1" },
+
+    { "issn": "0034-4257", "name": "Remote Sensing of Environment", "discipline": "遥感", "tier": "T1" },
+    { "issn": "0924-2716", "name": "ISPRS Journal of Photogrammetry and Remote Sensing", "discipline": "遥感", "tier": "T1" },
+    { "issn": "1569-8432", "name": "Int. J. Applied Earth Observation and Geoinformation", "discipline": "遥感", "tier": "T1" },
+    { "issn": "0196-2892", "name": "IEEE Transactions on Geoscience and Remote Sensing", "discipline": "遥感", "tier": "T1" },
+    { "issn": "1939-1404", "name": "IEEE J. Selected Topics in Applied Earth Observations and Remote Sensing", "discipline": "遥感", "tier": "T1" },
+    { "issn": "2150-704X", "name": "Remote Sensing Letters", "discipline": "遥感", "tier": "T2" },
+
+    { "issn": "0016-2361", "name": "Fuel", "discipline": "石油", "tier": "T1" },
+    { "issn": "0920-4105", "name": "Journal of Petroleum Science and Engineering", "discipline": "石油", "tier": "T1" },
+    { "issn": "2949-8910", "name": "Geoenergy Science and Engineering", "discipline": "石油", "tier": "T1" },
+    { "issn": "0264-8172", "name": "Marine and Petroleum Geology", "discipline": "石油", "tier": "T1" },
+    { "issn": "1086-055X", "name": "SPE Journal", "discipline": "石油", "tier": "T1" },
+    { "issn": "1876-3804", "name": "Petroleum Exploration and Development", "discipline": "石油", "tier": "T1" },
+    { "issn": "0149-1423", "name": "AAPG Bulletin", "discipline": "石油", "tier": "T1" },
+    { "issn": "0146-6380", "name": "Organic Geochemistry", "discipline": "石油", "tier": "T2" },
+
+    { "issn": "0018-9219", "name": "Proceedings of the IEEE", "discipline": "电子信息", "tier": "T1" },
+    { "issn": "0733-8716", "name": "IEEE Journal on Selected Areas in Communications", "discipline": "电子信息", "tier": "T1" },
+    { "issn": "1053-587X", "name": "IEEE Transactions on Signal Processing", "discipline": "电子信息", "tier": "T1" },
+    { "issn": "1536-1276", "name": "IEEE Transactions on Wireless Communications", "discipline": "电子信息", "tier": "T1" },
+    { "issn": "0018-9448", "name": "IEEE Transactions on Information Theory", "discipline": "电子信息", "tier": "T1" },
+
+    { "issn": "0888-3270", "name": "Mechanical Systems and Signal Processing", "discipline": "机械", "tier": "T1" },
+    { "issn": "0890-6955", "name": "International Journal of Machine Tools and Manufacture", "discipline": "机械", "tier": "T1" },
+    { "issn": "0007-8506", "name": "CIRP Annals", "discipline": "机械", "tier": "T1" },
+    { "issn": "0022-1120", "name": "Journal of Fluid Mechanics", "discipline": "机械", "tier": "T1" },
+    { "issn": "0094-114X", "name": "Mechanism and Machine Theory", "discipline": "机械", "tier": "T1" },
+
+    { "issn": "1359-6454", "name": "Acta Materialia", "discipline": "材料", "tier": "T1" },
+    { "issn": "0935-9648", "name": "Advanced Materials", "discipline": "材料", "tier": "T1" },
+    { "issn": "1369-7021", "name": "Materials Today", "discipline": "材料", "tier": "T1" },
+    { "issn": "1476-1122", "name": "Nature Materials", "discipline": "材料", "tier": "T1" },
+    { "issn": "0079-6425", "name": "Progress in Materials Science", "discipline": "材料", "tier": "T1" },
+
+    { "issn": "0001-1541", "name": "AIChE Journal", "discipline": "化工", "tier": "T1" },
+    { "issn": "1385-8947", "name": "Chemical Engineering Journal", "discipline": "化工", "tier": "T1" },
+    { "issn": "0009-2509", "name": "Chemical Engineering Science", "discipline": "化工", "tier": "T1" },
+    { "issn": "0888-5885", "name": "Industrial & Engineering Chemistry Research", "discipline": "化工", "tier": "T1" },
+    { "issn": "0021-9517", "name": "Journal of Catalysis", "discipline": "化工", "tier": "T1" },
+    { "issn": "0926-3373", "name": "Applied Catalysis B: Environmental", "discipline": "化工", "tier": "T1" },
+
+    { "issn": "0360-5442", "name": "Energy", "discipline": "能源", "tier": "T1" },
+    { "issn": "0306-2619", "name": "Applied Energy", "discipline": "能源", "tier": "T1" },
+    { "issn": "1364-0321", "name": "Renewable and Sustainable Energy Reviews", "discipline": "能源", "tier": "T1" },
+    { "issn": "0196-8904", "name": "Energy Conversion and Management", "discipline": "能源", "tier": "T1" },
+    { "issn": "2542-4351", "name": "Joule", "discipline": "能源", "tier": "T1" },
+    { "issn": "0360-1285", "name": "Progress in Energy and Combustion Science", "discipline": "能源", "tier": "T1" }
+  ]
+}

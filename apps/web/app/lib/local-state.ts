@@ -30,7 +30,15 @@ export interface LocalStarredItem {
   publishedAt: string | null;
   score: number | null;
   aiSelected: boolean;
+  /** A reader's own folder name; absent on stars saved before folders existed. */
+  folder?: string | null;
+  /** A reader's own tags; absent on stars saved before tags existed. */
+  tags?: string[];
+  /** Where the reader is with it; absent on stars saved before statuses existed (treated as saved). */
+  status?: StarStatus;
 }
+
+export type StarStatus = "saved" | "reading" | "done";
 
 type StorageKind = "local" | "session";
 
@@ -164,6 +172,9 @@ function normalizeStarred(v: Record<string, unknown>): LocalStarredItem {
     publishedAt: isDisplayableDate(v.publishedAt) ? v.publishedAt : null,
     score: typeof v.score === "number" ? v.score : null,
     aiSelected: v.aiSelected === true,
+    folder: typeof v.folder === "string" && v.folder.trim() ? v.folder.trim().slice(0, 40) : null,
+    tags: Array.isArray(v.tags) ? [...new Set(v.tags.filter((t): t is string => typeof t === "string").map((t) => t.trim().slice(0, 20)).filter(Boolean))].slice(0, 5) : [],
+    status: v.status === "reading" || v.status === "done" ? v.status : "saved",
   };
 }
 
@@ -185,7 +196,7 @@ function isStarred(id: string): boolean {
 }
 
 export function toggleStar(item: Omit<LocalStarredItem, "savedAt">): boolean {
-  return editLocalData(() => {
+  const added = editLocalData(() => {
     if (starredUnreadable()) return false;
     const list = getStarred();
     const exists = list.some((s) => s.id === item.id);
@@ -194,12 +205,30 @@ export function toggleStar(item: Omit<LocalStarredItem, "savedAt">): boolean {
     invalidate(KEYS.starred);
     return saved && !exists;
   });
+  notifyLocalChange(added ? { kind: "star", on: true, item } : { kind: "star", on: false, id: item.id });
+  return added;
 }
 
 export function removeStar(id: string) {
   editLocalData(() => {
     if (starredUnreadable()) return;
     writeRaw(KEYS.starred, JSON.stringify(getStarred().filter((s) => s.id !== id)));
+    invalidate(KEYS.starred);
+  });
+  notifyLocalChange({ kind: "star", on: false, id });
+}
+
+/** 登录后把账号里的收藏并进浏览器：已有的保留本地时间，新的按保存时间插入。 */
+export function mergeStarred(incoming: LocalStarredItem[]) {
+  if (incoming.length === 0) return;
+  editLocalData(() => {
+    if (starredUnreadable()) return;
+    const list = getStarred();
+    const known = new Set(list.map((s) => s.id));
+    const added = incoming.filter((s) => !known.has(s.id));
+    if (added.length === 0) return;
+    const next = [...list, ...added].sort((a, b) => b.savedAt.localeCompare(a.savedAt)).slice(0, STARRED_LIMIT);
+    writeRaw(KEYS.starred, JSON.stringify(next));
     invalidate(KEYS.starred);
   });
 }
@@ -231,6 +260,48 @@ export function markRead(id: string) {
     writeRaw(KEYS.read, JSON.stringify(next));
     invalidate(KEYS.read);
   });
+  notifyLocalChange({ kind: "read", id });
+}
+
+/** 登录后把账号里的已读并在本地记录前面；顺序只影响“最近读过”，归属只看集合。 */
+export function mergeRead(incoming: string[]) {
+  if (incoming.length === 0) return;
+  editLocalData(() => {
+    const current = getReadIds();
+    const known = new Set(current);
+    const added = incoming.filter((id) => ID_PATTERN.test(id) && !known.has(id));
+    if (added.length === 0) return;
+    const next = [...added, ...current].slice(0, READ_LIMIT);
+    writeRaw(KEYS.read, JSON.stringify(next));
+    invalidate(KEYS.read);
+  });
+}
+
+/** 改一条收藏的分组、标签和阅读状态；只动本机，账号同步订阅事件后推给服务器。 */
+export function setStarMeta(id: string, folder: string | null, tags: string[], status: StarStatus = "saved") {
+  const cleanFolder = folder?.trim().slice(0, 40) || null;
+  const cleanTags = [...new Set(tags.map((t) => t.trim().slice(0, 20)).filter(Boolean))].slice(0, 5);
+  editLocalData(() => {
+    if (starredUnreadable()) return;
+    const next = getStarred().map((star) => (star.id === id ? { ...star, folder: cleanFolder, tags: cleanTags, status } : star));
+    writeRaw(KEYS.starred, JSON.stringify(next));
+    invalidate(KEYS.starred);
+  });
+  notifyLocalChange({ kind: "star-meta", id, folder: cleanFolder, tags: cleanTags, status });
+}
+
+/** 模块（账号同步）订阅的本地数据变化；只在浏览器里发，服务端渲染时不发。 */
+export const LOCAL_CHANGE_EVENT = "aihot:local-change";
+export type LocalChange =
+  | { kind: "star"; on: true; item: Omit<LocalStarredItem, "savedAt"> }
+  | { kind: "star"; on: false; id: string }
+  | { kind: "read"; id: string }
+  | { kind: "star-meta"; id: string; folder: string | null; tags: string[]; status: StarStatus };
+
+function notifyLocalChange(change: LocalChange) {
+  // Tests and non-browser shells provide a partial window; there is nothing to notify without events.
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") return;
+  window.dispatchEvent(new CustomEvent<LocalChange>(LOCAL_CHANGE_EVENT, { detail: change }));
 }
 
 // appearance

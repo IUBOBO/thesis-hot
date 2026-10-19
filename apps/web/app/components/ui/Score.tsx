@@ -1,8 +1,8 @@
 import { ITEM_COPY } from "@aihot/site";
 
 /**
- * The AI score as a small pill, tinted by tier instead of drawn as a bar: strong picks (85+) in a wash of
- * warm red, solid ones (70+) in the accent, the rest as quiet text. The score itself is unchanged.
+ * The AI score as a row of stars (0–5), tinted by tier: strong picks (85+) in warm red, solid ones (70+)
+ * in the accent, the rest as quiet text. The 0–100 score itself is kept for the API and the backend.
  */
 const TIERS = [
   { min: 85, className: "bg-hot/10 text-hot ring-hot/25" },
@@ -15,25 +15,21 @@ export function shownScore(score: number | null): number | null {
   return ITEM_COPY.showScore ? score : null;
 }
 
-/** "AI 评分 · 88" on desktop cards; `compact` keeps only the number (phones). */
-export function ScoreLabel({ score, compact = false }: { score: number | null; compact?: boolean }) {
+/** "★★★★☆" with a hover note on how it is read. One markup for every screen size. */
+export function ScoreLabel({ score }: { score: number | null }) {
   const shown = shownScore(score);
   if (shown === null) return null;
   const value = Math.round(shown);
   const tier = TIERS.find((t) => value >= t.min)!;
+  const stars = Math.round(value / 20);
+  const label = `推荐度 ${stars} / 5`;
   return (
     <span
-      title={`AI 评分 ${value}/100`}
-      aria-label={`AI 评分 ${value} 分`}
-      className={`inline-flex h-[20px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 ring-1 ring-inset ${tier.className}`}
+      title={`${label}：由模型综合评定的参考值，不代表论文的最终质量`}
+      aria-label={label}
+      className={`inline-flex h-[20px] shrink-0 items-center whitespace-nowrap rounded-full px-2 text-[12px] leading-none tracking-[0.08em] ring-1 ring-inset ${tier.className}`}
     >
-      {!compact && (
-        <>
-          <span className="text-[11px] font-medium leading-none opacity-80">AI 评分</span>
-          <span className="h-2.5 w-px bg-current opacity-25" aria-hidden="true" />
-        </>
-      )}
-      <span className="mono text-[12.5px] font-bold leading-none tabular-nums">{value}</span>
+      <span aria-hidden="true">{"★".repeat(stars)}{"☆".repeat(5 - stars)}</span>
     </span>
   );
 }
